@@ -1,0 +1,524 @@
+pro spinor_corr_fringes,infile,input_dir = input_dir,output_dir = output_dir,ppos = ppos,pos_solar = pos_solar,cont_wl =cont_wl,pos_lines = pos_lines,check_lines = check_lines,plt = plt,noquv = noquv,step = step,help = help
+
+
+
+;+
+;============================================================================
+;
+;	procedure : spinor_corr_fringes  
+;
+;	purpose   : remove fringes in QUV SPINOR observational data
+;
+;	author    : cbeck@nso Jul 2013
+;
+;==============================================================================
+;
+;	Check number of arguments.
+;
+;==============================================================================
+if n_elements(help) ne 0 then begin
+	print
+	print, "usage:   spinor_corr_fringes,infile,input_dir = input_dir,output_dir = output_dir,ppos = ppos,pos_solar = pos_solar,cont_wl =cont_wl,pos_lines = pos_lines,check_lines = check_lines,plt = plt,noquv = noquv,step = step,help = help"
+	print
+	print, "	 Remove fringes in QUV SPINOR data."
+        print, "         "
+	print
+	print, "	Arguments"
+        print, "                infile: file name of input file to be corrected"
+        print
+        print, "         Keywords :"
+        print, "              input_dir : source directory with reduced data."
+        print, "              output_dir: destination directory for fringe-filtered reduced data."
+        print, "              ppos      : fltarr(4) or fltarr(8) or fltarr(12); positions of frequencies"
+        print, "                          to be removed, in the form [x0, x1 y0, y1], or"
+        print, "                          [x0, x1 y0, y1,x2,x3,y2,x3], etc."
+        print, "              pos_solar : location of solar line in pixels for"
+        print, "                          creation of |QUV| maps. If not provided,"
+        print, "                          a range around the solar lines will be used."
+        print, "              cont_wl   : fltarr(2), [l0,l1] : wavelength pixel"
+        print, "                          range to use constructing Ic map"
+        print, "               pos_lines:fltarr(2),location of spectral lines in pixel"
+        print, "              /check_lines: switch to enforce the manual selection"
+        print, "                         of the spectral lines."
+        print, "              /plt        : switch on plotting (recommended)"
+        print, "              noquv       : fltarr(3); switch to deactivate filtering in in"
+        print, "                            Stokes parameter. Default: [1,1,1], set to"
+        print, "                            e.g. [0,1,1] to exclude Stokes Q from filtering"
+        print, "              step        : scan step to be used for testing if first scan"
+        print, "                            step is unsuited"
+        print, "               /help   : switch to active the help text above."
+        print
+return
+endif
+;==============================================================================
+;-
+
+
+; see spinor_obs.pro for more details on calculation steps below, most
+; of it is copy & paste from there.
+
+if n_elements(noquv) eq 0 then noquv = [1,1,1]
+if n_elements(output_dir) eq 0 then output_dir = '/nfs/export/scr2/cbeck/dpc/fringe_filtered_8542_spinor/072913/'
+if n_elements(input_dir) eq 0 then  input_dir ='/nfs/export/scr2/cbeck/dpc/072913/reduced_8542_spinor/'
+if n_elements(infile) eq 0 then infile = '130729.114800.0.ccc01.c-hrt.map.0005.fits.reduced.dat'
+
+restore,input_dir+infile+'.sav'
+
+; read scan step to test filter
+if n_elements(step) eq 0 then step = 0
+read_reduced_spinor,input_dir+infile,step,i,q,u,v,dx_final,dy_final,swap = swap
+
+ff = where(finite(q) ne 1)
+if ff(0) ne -1 then q(ff) = 0.
+
+ff = where(finite(u) ne 1)
+if ff(0) ne -1 then u(ff) = 0.
+
+ff = where(finite(v) ne 1)
+if ff(0) ne -1 then v(ff) = 0.
+
+
+tt = size(i)
+xdim = tt(1)
+ydim = tt(2)
+
+a = fft(q,-1)
+b = fft(u,-1)
+c = fft(v,-1)
+
+erg = get_screen_size()
+
+ddimx = erg(0)
+ddimy = erg(1)
+
+if xdim gt ddimx then xxdim = ddimx else xxdim = xdim
+if 3*ydim gt ddimy then yydim = ddimy else yydim = ydim*3
+
+if n_elements(ppos) ne 0 then begin
+   pposi = ppos
+   pposq = ppos
+   pposu = ppos
+   pposv = ppos
+endif
+
+
+; define the region in the Fourier power to be removed by up to three
+; rectangles 
+if n_elements(ppos) eq 0 then begin
+
+   window,0,xs = 3*xdim+50,ys = ydim+50,title ='Please mark frequencies to remove: x0, x1, y0, y1'
+   tvscl,alog(abs(a)),25,25
+   tvscl,alog(abs(b)),25+xdim,25
+   tvscl,alog(abs(c)),25+2*xdim,25
+   plots,[0,0]+xdim+25,[0,ydim+50],/device,thick = 2
+   plots,[0,0]+xdim*2+25,[0,ydim+50],/device,thick = 2
+
+   
+   window,1,xs = xxdim,ys = yydim,title ='Filtering QUV'
+   tvscl,congrid(q,xxdim/2.,yydim/3.,/interp),0,0
+   tvscl,congrid(u,xxdim/2.,yydim/3.,/interp),0,yydim/3.
+   tvscl,congrid(v,xxdim/2.,yydim/3.,/interp),0,2*yydim/3.
+   
+   cchars = 1.
+   ppostotal = 0.
+   index = 0
+   ppos = fltarr(4)
+   finished = 0
+   while finished ne 1 do begin
+      wset,0
+      cursor,x,y,/device,/change
+      x = x mod xdim
+      if x lt 25 then x = 25
+      if y lt 25 then y = 25
+      if x ge xdim + 25 then x = xdim +25-1
+      if y ge ydim + 25 then y = ydim +25-1
+      tvscl,alog(abs(a)),25,25
+      tvscl,alog(abs(b)),25+xdim,25
+      tvscl,alog(abs(c)),25+2*xdim,25
+      plots,[0,0]+xdim+25,[0,ydim+50],/device,thick = 2
+      plots,[0,0]+xdim*2+25,[0,ydim+50],/device,thick = 2
+      
+      plots,[0,0]+x,[25,25+ydim],/device
+      plots,[0,0]+x+xdim,[25,25+ydim],/device
+      plots,[0,0]+x+xdim*2,[25,25+ydim],/device
+      plots,25+[0,3*xdim],[0,0]+y,/device
+      xyouts,.1,.1,num2string(x)+','+num2string(y),/normal,charsize = cchars
+      
+      if !mouse.button eq 1 then begin
+         ppos(index) = x-25
+         ppos(index+2) = y-25
+         index = index + 1
+         wait,.7
+      endif
+      
+      if index eq 1 then begin
+         draw_rec,[ppos(0)+25,x],[ppos(2)+25,y],/device,color = 240
+         draw_rec,[ppos(0)+25,x]+xdim,[ppos(2)+25,y],/device,color = 240
+         draw_rec,[ppos(0)+25,x]+xdim*2,[ppos(2)+25,y],/device,color = 240
+      endif
+
+      if n_elements(ppostotal) ne 1 then begin
+         pppostotal = ppostotal(1:*)
+         draw_rec,[pppostotal(0),pppostotal(1)]+25,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,[pppostotal(0),pppostotal(1)]+25+xdim,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,[pppostotal(0),pppostotal(1)]+25+2*xdim,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+2*xdim,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+1*xdim,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+0*xdim,[pppostotal(2),pppostotal(3)]+25,/device,color = 240
+         draw_rec,[pppostotal(0),pppostotal(1)]+25,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         draw_rec,[pppostotal(0),pppostotal(1)]+25+xdim,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         draw_rec,[pppostotal(0),pppostotal(1)]+25+2*xdim,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+2*xdim,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+1*xdim,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         draw_rec,25+xdim-[pppostotal(0),pppostotal(1)]+0*xdim,25+ydim-[pppostotal(2),pppostotal(3)],/device,color = 240
+         if n_elements(ppostotal) ge 8 then begin
+            draw_rec,[pppostotal(4),pppostotal(5)]+25,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,[pppostotal(4),pppostotal(5)]+25+xdim,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,[pppostotal(4),pppostotal(5)]+25+2*xdim,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(4),pppostotal(5)]+2*xdim,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(4),pppostotal(5)]+1*xdim,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(4),pppostotal(5)]+0*xdim,[pppostotal(6),pppostotal(7)]+25,/device,color = 240
+            draw_rec,[pppostotal(4),pppostotal(5)]+25,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+            draw_rec,[pppostotal(4),pppostotal(5)]+25+xdim,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+            draw_rec,[pppostotal(4),pppostotal(5)]+25+2*xdim,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(5),pppostotal(5)]+2*xdim,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(4),pppostotal(5)]+1*xdim,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(4),pppostotal(5)]+0*xdim,25+ydim-[pppostotal(6),pppostotal(7)],/device,color = 240
+         endif
+         if n_elements(ppostotal) ge 12 then begin
+            draw_rec,[pppostotal(8),pppostotal(9)]+25,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,[pppostotal(8),pppostotal(9)]+25+xdim,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,[pppostotal(8),pppostotal(9)]+25+2*xdim,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(8),pppostotal(9)]+2*xdim,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(8),pppostotal(9)]+1*xdim,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,25+xdim-[pppostotal(8),pppostotal(9)]+0*xdim,[pppostotal(10),pppostotal(11)]+25,/device,color = 240
+            draw_rec,[pppostotal(8),pppostotal(9)]+25,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+            draw_rec,[pppostotal(8),pppostotal(9)]+25+xdim,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+            draw_rec,[pppostotal(8),pppostotal(9)]+25+2*xdim,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(9),pppostotal(9)]+2*xdim,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(8),pppostotal(9)]+1*xdim,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+            draw_rec,25+xdim-[pppostotal(8),pppostotal(9)]+0*xdim,25+ydim-[pppostotal(10),pppostotal(11)],/device,color = 240
+         endif
+      endif
+  
+      if index eq 2 then begin
+         draw_rec,[ppos(0),ppos(1)]+25,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,[ppos(0),ppos(1)]+25+xdim,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,[ppos(0),ppos(1)]+25+2*xdim,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+2*xdim,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+1*xdim,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+0*xdim,[ppos(2),ppos(3)]+25,/device,color = 240
+         draw_rec,[ppos(0),ppos(1)]+25,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+         draw_rec,[ppos(0),ppos(1)]+25+xdim,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+         draw_rec,[ppos(0),ppos(1)]+25+2*xdim,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+2*xdim,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+1*xdim,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+         draw_rec,25+xdim-[ppos(0),ppos(1)]+0*xdim,25+ydim-[ppos(2),ppos(3)],/device,color = 240
+                
+         x0 = ppos(0)
+         x1 = ppos(1)
+         y0 = ppos(2)
+         y1 = ppos(3)
+
+         print
+         print,'Marked position:'
+         print,'x: ',x0,x1
+         print,'y: ',y0,y1
+         print
+
+         q1 = q
+         u1 = u
+         v1 = v
+         
+; apply filter on scan step       
+         wset,1    
+         if noquv(0) eq 1 then fft_filter,q1,x0,x1,y0,y1,xdim,ydim
+         if noquv(1) eq 1 then fft_filter,u1,x0,x1,y0,y1,xdim,ydim
+         if noquv(2) eq 1 then fft_filter,v1,x0,x1,y0,y1,xdim,ydim
+
+         if noquv(0) eq 1 and n_elements(xx0) ne 0 then  fft_filter,q1,xx0,xx1,yy0,yy1,xdim,ydim
+         if noquv(1) eq 1 and n_elements(xx0) ne 0 then  fft_filter,u1,xx0,xx1,yy0,yy1,xdim,ydim
+         if noquv(2) eq 1 and n_elements(xx0) ne 0 then  fft_filter,v1,xx0,xx1,yy0,yy1,xdim,ydim
+
+         if noquv(0) eq 1 and n_elements(x2) ne 0 then  fft_filter,q1,x2,x3,y2,y3,xdim,ydim
+         if noquv(1) eq 1 and n_elements(x2) ne 0 then  fft_filter,u1,x2,x3,y2,y3,xdim,ydim
+         if noquv(2) eq 1 and n_elements(x2) ne 0 then  fft_filter,v1,x2,x3,y2,y3,xdim,ydim
+
+         if noquv(0) eq 1 and n_elements(x4) ne 0 then  fft_filter,q1,x4,x5,y4,y5,xdim,ydim
+         if noquv(1) eq 1 and n_elements(x4) ne 0 then  fft_filter,u1,x4,x5,y4,y5,xdim,ydim
+         if noquv(2) eq 1 and n_elements(x4) ne 0 then  fft_filter,v1,x4,x5,y4,y5,xdim,ydim
+
+
+         
+         tvscl,congrid(q1,xxdim/2.,yydim/3.,/interp),xxdim/2.,0
+         tvscl,congrid(u1,xxdim/2.,yydim/3.,/interp),xxdim/2.,yydim/3.
+         tvscl,congrid(v1,xxdim/2.,yydim/3.,/interp),xxdim/2.,2*yydim/3.
+      
+         xyouts,findgen(2)/2.+.2,.1,['Before','After'],/normal,charsize = cchars*2.
+         xyouts,.1,findgen(3)/3.+.1,['Q','U','V'],/normal,charsize = cchars
+
+         print
+         ans = read_keyboard('Accept positions (y)es/(n)o ? ')
+         if ans eq 'n' then begin
+            index = 0
+            ppos = fltarr(4)
+         endif else begin
+            ppostotal = [ppostotal,ppos]
+            print
+            ans = read_keyboard('Add another region (y)es/(n)o ? ')
+            if ans eq 'n' then finished = 1 else begin
+               index = 0
+               if n_elements(ppostotal) ne 1 then begin
+                  nn  = n_elements(ppostotal)
+                  xx0 = ppostotal(1)
+                  xx1 = ppostotal(2)
+                  yy0 = ppostotal(3)
+                  yy1 = ppostotal(4)
+                  
+                  if nn ge 8 then begin
+                     x2 = ppostotal(5)
+                     x3 = ppostotal(6)
+                     y2 = ppostotal(7)
+                     y3 = ppostotal(8)
+                  endif
+                  if nn eq 12 then begin
+                     x4 = ppostotal(9)
+                     x5 = ppostotal(10)
+                     y4 = ppostotal(11)
+                     y5 = ppostotal(12)
+                  endif
+               endif
+            endelse 
+         endelse
+      endif
+   endwhile
+endif else begin
+
+   x0 = ppos(0)
+   x1 = ppos(1)
+   y0 = ppos(2)
+   y1 = ppos(3)
+
+if n_elements(ppos) ge 8 then begin
+   x2 = ppos(4)
+   x3 = ppos(5)
+   y2 = ppos(6)
+   y3 = ppos(7) 
+endif
+
+if n_elements(ppos) ge 12 then begin
+   x4 = ppos(8)
+   x5 = ppos(9)
+   y4 = ppos(10)
+   y5 = ppos(11) 
+endif
+
+endelse
+
+if n_elements(ppostotal) ge 4 then begin
+   ppostotal = ppostotal(1:*)
+
+   nn  = n_elements(ppostotal)
+   x0 = ppostotal(0)
+   x1 = ppostotal(1)
+   y0 = ppostotal(2)
+   y1 = ppostotal(3)
+
+   if nn ge 8 then begin
+      x2 = ppostotal(4)
+      x3 = ppostotal(5)
+      y2 = ppostotal(6)
+      y3 = ppostotal(7)
+   endif
+   if nn eq 12 then begin
+      x4 = ppostotal(8)
+      x5 = ppostotal(9)
+      y4 = ppostotal(10)
+      y5 = ppostotal(11)
+   endif
+endif
+
+
+rr = size(ic)
+
+nsteps = rr(1)
+window,1,xs = xxdim,ys = yydim
+cchars = 1.
+window,4,xs = 2*nsteps,ys = 600,title = '2D maps'
+
+outfile = output_dir +strmid(infile,0,strlen(infile)-3)+'fringe_filtered.dat'
+outfile1 = outfile + '.sav'
+
+if n_elements(ppostotal) ge 4 then ppos = ppostotal
+
+print,ppos
+
+openw,out_unit,outfile,/get_lun
+
+for k = 0,nsteps-1 do begin
+
+   step = k
+   read_reduced_spinor,input_dir+infile,step,i,q,u,v,dx_final,dy_final,swap = swap
+
+   if k eq 0 then begin
+      iline = total(i,2)
+      if max(iline) eq 0 then iline = iline + 1.
+      iline = abs(iline/float(max(iline))-1)
+
+                                ; search for lines automatically 
+      n = length(iline)
+      ilobes = fltarr(n-4)
+      threshh = .2
+      ilobeindex = 0.
+      for kkk = 5,n-5 do begin
+         if iline(kkk) gt max(iline(kkk+1:kkk+4)) and iline(kkk) gt max(iline(kkk-4:kkk-1)) and iline(kkk) gt threshh then begin
+            ilobes(ilobeindex) = kkk
+            ilobeindex = ilobeindex+1
+         endif
+      endfor
+    
+      if n_elements(pos_lines) ne 0 then begin
+         ilobes = pos_lines
+         ilobeindex = n_elements(ilobes)
+      endif
+      if n_elements(verbose) ne 0 then print,ilobeindex,' spectral lines found.'
+      wdel17 = 0.
+
+; mark center of lines manually
+      if ilobeindex ne 2 or n_elements(check_lines) ne 0 then begin
+         print,' Automatic detection of spectral lines failed.'
+         print,' Please select lines manually:'
+         window,17,title = 'Please mark 2 spectral lines'
+         wdel17 = 1.
+         !p.multi = 0
+         plot,iline 
+         ilobeindex = 0.
+         ilobes = fltarr(n-4)
+         while ilobeindex ne 2 do begin
+            wset,17
+            cursor,x,y,/data,/wait
+            if !mouse.button eq 1 then begin
+               ilobes(ilobeindex) = x
+               ilobeindex = ilobeindex+1
+               print,'Line ',ilobeindex
+               print,'at ',x
+               oplot,[x,x],[0,1]
+               wait,.5
+            endif
+            if ilobeindex eq 2 then begin
+               ans = read_keyboard('Selection okay y(es)/n(o) ')
+               if ans eq 'n' then begin
+                  ilobeindex = 0
+                  plot,iline    
+               endif
+            endif
+         endwhile
+      endif
+      ilobes = ilobes(0:ilobeindex-1)
+      ilobes = ilobes(sort(ilobes))
+
+      pos_lines = ilobes
+      
+   ; location of spectral line to be used for alignment purposes
+   ; should be set to Si 1082.7 nm 
+      range_telu = [-15,15]+ilobes(0)
+     
+; location of solar lines for |QUV| maps
+      if n_elements(pos_solar) eq 0 then pos_solar = [ilobes(1)-30,ilobes(1)+30.]
+      if n_elements(cont_wl) eq 0 then cont_wl = [ilobes(0)+30,ilobes(1)-30]    
+      cont_wl = cont_wl(sort(cont_wl))
+   endif
+
+
+   wset,1
+   tvscl,congrid(q,xxdim/2.,yydim/3.,/interp),0,0
+   tvscl,congrid(u,xxdim/2.,yydim/3.,/interp),0,yydim/3.
+   tvscl,congrid(v,xxdim/2.,yydim/3.,/interp),0,2*yydim/3.
+
+   ff = where(finite(q) ne 1)
+   if ff(0) ne -1 then q(ff) = 0.
+   
+   ff = where(finite(u) ne 1)
+   if ff(0) ne -1 then u(ff) = 0.
+
+   ff = where(finite(v) ne 1)
+   if ff(0) ne -1 then v(ff) = 0.
+
+ if noquv(0) eq 1 then  fft_filter,q,x0,x1,y0,y1,xdim,ydim
+ if noquv(1) eq 1 then  fft_filter,u,x0,x1,y0,y1,xdim,ydim
+ if noquv(2) eq 1 then  fft_filter,v,x0,x1,y0,y1,xdim,ydim
+
+ if noquv(0) eq 1 and n_elements(x2) ne 0 then  fft_filter,q,x2,x3,y2,y3,xdim,ydim
+ if noquv(1) eq 1 and n_elements(x2) ne 0 then  fft_filter,u,x2,x3,y2,y3,xdim,ydim
+ if noquv(2) eq 1 and n_elements(x2) ne 0 then  fft_filter,v,x2,x3,y2,y3,xdim,ydim
+
+ if noquv(0) eq 1 and n_elements(x4) ne 0 then  fft_filter,q,x4,x5,y4,y5,xdim,ydim
+ if noquv(1) eq 1 and n_elements(x4) ne 0 then  fft_filter,u,x4,x5,y4,y5,xdim,ydim
+ if noquv(2) eq 1 and n_elements(x4) ne 0 then  fft_filter,v,x4,x5,y4,y5,xdim,ydim
+
+ ff = where(finite(i) ne 1 or i eq 0)
+ if ff(0) ne -1 then i(ff) = 1.
+ 
+ ff = where(finite(q) ne 1)
+ if ff(0) ne -1 then q(ff) = 0.
+ 
+ ff = where(finite(u) ne 1)
+ if ff(0) ne -1 then u(ff) = 0.
+
+ ff = where(finite(v) ne 1)
+ if ff(0) ne -1 then v(ff) = 0.
+
+   tvscl,congrid(q/i,xxdim/2.,yydim/3.,/interp),xxdim/2.,0
+   tvscl,congrid(u/i,xxdim/2.,yydim/3.,/interp),xxdim/2.,yydim/3.
+   tvscl,congrid(v/i,xxdim/2.,yydim/3.,/interp),xxdim/2.,2*yydim/3.
+
+   xyouts,.1,findgen(3)/3.+.1,['Q','U','V'],/normal,charsize = cchars
+   xyouts,findgen(2)/2.+.2,.1,['Before','After'],/normal,charsize = cchars*2.
+   
+   
+   ic(k,*) = total(i(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+
+   qq = median(q/i,5)
+   uu = median(u/i,5)
+   vv = median(v/i,5)
+
+ ;  totq(k,*) = total( abs ( q(pos_solar(0):pos_solar(1),*)/i(pos_solar(0):pos_solar(1),*)),1)
+ ;  totu(k,*) = total( abs ( u(pos_solar(0):pos_solar(1),*)/i(pos_solar(0):pos_solar(1),*)),1)
+;   totv(k,*) = total( abs (
+;   v(pos_solar(0):pos_solar(1),*)/i(pos_solar(0):pos_solar(1),*)),1)
+
+   totq(k,*) = total( abs ( qq(pos_solar(0):pos_solar(1),*)),1)
+   totu(k,*) = total( abs ( uu(pos_solar(0):pos_solar(1),*)),1)
+   totv(k,*) = total( abs ( vv(pos_solar(0):pos_solar(1),*)),1)
+
+
+   a = fltarr(xdim,ydim,4)
+   a(*,*,0) = i
+   a(*,*,1) = q
+   a(*,*,2) = u
+   a(*,*,3) = v
+
+   writeu,out_unit,a
+
+
+   if n_elements(plt) ne 0 then begin
+      wset,4
+      tvscl,congrid(ic,nsteps,300,/interp) > 10 ,0,0
+      tvscl,alog(congrid(totq,nsteps,300,/interp) > 0.0001),nsteps,0
+      tvscl,alog(congrid(totu,nsteps,300,/interp) > 0.0001),0,300
+      tvscl,alog(congrid(totv,nsteps,300,/interp) > 0.0001),nsteps,300
+   endif
+
+
+   print,nsteps-1-k
+
+endfor
+
+free_lun,out_unit
+
+; save overview maps and other info
+save,ic,totq,totu,totv,sshifts,v2q,v2u,llinepos,pos_solar,pos_lines,dx_final,dy_final,n_slits,int_only,x0,x1,y0,y1,filename = outfile1
+
+
+
+end

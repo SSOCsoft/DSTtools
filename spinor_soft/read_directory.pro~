@@ -1,0 +1,170 @@
+function read_directory,inpath,help = help,filter = filter
+
+;+
+;============================================================================
+;
+;	function : read_directory
+;
+;	purpose  : list files in a directory. Set additional flag, if
+;	           filename is a directory.
+;
+;       calls    : filepath.pro, fstat.pro, spawn (idl-implemented)
+;
+;	written :  cbeck@KIS 06/03
+;
+;=============================================================================
+;
+;	Check number of arguments.
+;
+;=============================================================================
+if n_params() gt 1 or n_elements(help) ne 0 then begin
+	print
+	print, "usage:  erg = read_directory(inpath,help = help), or"
+        print, "        erg = read_directory()"
+	print
+        print, "        Return entries of a directory as structure."
+        print, "        If argument inpath is omitted the current directory"
+        print, "        is taken."
+        print, "        If filenames are subdirectories, additional"
+        print, "        flag is set. erg is a structure of the following"
+        print, "        shape: erg = {files:strarr(n),types:strarr(n),"
+        print, "                      success:fltarr(1)}. types = '0': file"
+        print, "                      types ='1': directory."
+        print, "                      if erg.success = 0 temporary file"
+        print, "                      could not be created, or inpath was"
+        print, "                      no directory."
+        print, "         Only the first 2000 entries are processed."
+        print, "         Number could be changed if necessary, see line 89ff."
+        print
+	print, "	Arguments"
+        print, "                Input :"
+        print, "		inpath : string of filepath to list entries"
+        print, "                         of. May be omitted, current"
+        print, "                         directory is taken as default in"
+        print, "                         this case."
+        print
+        listing_inf = {files:'',types:'',success:fltarr(1)}
+        return,listing_inf
+endif
+;=============================================================================
+;-
+
+; catch I/O-errors
+on_ioerror,rettung
+pp = 1
+
+; store current directory
+cd,current = olddir
+
+; if no filepath is given use current directory
+if n_elements(inpath) eq 0 then cd,current = inpath
+
+; if filepath is given, but is '' then use current directory
+if n_elements(inpath) ne 0 then begin
+    if inpath eq '' then cd,current = inpath
+endif
+
+; find path to create temporary file
+storepath = ''
+storepath = filepath('',/tmp)
+
+; if storepath can not be set, save from crash
+if storepath eq '' then goto,rettung
+
+; if filename is no directory, save from crash
+erg = file_test(inpath,/directory)
+if erg(0) ne 1 then goto,rettung1
+
+; goto to target directory
+cd,inpath
+
+tt = abs(randomn(S,2))
+tt = num2string(tt(0))+num2string(tt(1))
+; temporary file
+temp_file = 'IDL'+tt+'.remove_me'
+
+ttext = 'ls > '
+
+if n_elements(filter) ne 0 then ttext = 'ls '+filter+' > '
+
+; write listing into temporary file
+spawn,ttext+storepath+temp_file
+
+; read temporary file
+openr,in_unit,storepath+temp_file,/get_lun
+
+; find size of temporary file
+erg1 = fstat(in_unit) & max_size = erg1.size
+
+; maximal number of entries
+listing = strarr(50000)
+a = strarr(1)
+
+; read in temporary file string by string
+for k = 0.,49999 do begin
+
+    ; break loop if end of file encountered, remove temporary file
+    point_lun,-in_unit,pos
+    if pos eq max_size then begin
+        free_lun,in_unit
+        spawn,'rm '+storepath+temp_file
+        break
+    endif
+
+    ; else read entry
+    readf,in_unit,a
+    listing(k) = a
+endfor
+
+; close file if really 2000 file entries were present
+if k eq 49999 then begin
+    free_lun,in_unit
+    spawn,'rm '+storepath+temp_file
+endif
+
+free_lun,in_unit
+
+; throw away empty entries
+tt = where(listing ne '')
+if tt(0) ne -1 then listing = listing(tt) else listing = ''
+
+; go back to start directory
+cd,olddir
+
+; create structure for results
+listing_inf = {files:listing,types:listing,success:fltarr(1)}
+
+; check if filenames were subdirectories
+for k = 0,n_elements(listing)-1 do begin
+    if listing(k) ne '' then begin
+        erg2 = file_test(inpath+'/'+listing(k),/directory)
+        if erg2 eq 1 then listing_inf.types(k) = '1' else listing_inf.types(k)='0'
+    endif
+endfor
+
+; set success flag to 1
+listing_inf.success = 1
+
+; catched I/O-errors
+pp = 0
+rettung:
+if pp eq 1 then begin
+cd,olddir
+print
+print,' !read_directory: Sorry, can not read directory '+inpath+' !'
+print,' Can not create contents file '+temp_file+' in '+storepath+' !'
+listing_inf = {files:'',types:'',success:fltarr(1)}
+return,listing_inf
+endif
+rettung1:
+if pp eq 1 then begin
+print
+print,' !read_directory: Sorry, can not read directory '+inpath+' !'
+print,' Directory does not exist or is a file !'  
+listing_inf = {files:'',types:'',success:fltarr(1)}
+endif
+
+; return result
+return,listing_inf
+
+end

@@ -1,0 +1,993 @@
+pro spinor_obs,plt = plt,cont_wl = cont_wl,v2q = v2q, v2u = v2u,pos_solar = pos_solar,beta = beta,obsindex = obsindex,gainindex = gainindex,scan_range = scan_range,smooth_width = smooth_width,spec_grad = spec_grad,verbose = verbose,angle = angle,darkindex = darkindex,calindex = calindex,tel_cal = tel_cal,input_dir = input_dir,output_dir = output_dir,check_lines = check_lines,ccal_file = ccal_file,flat_file = flat_file,swap = swap,tmat_save = tmat_save,ooutfile = ooutfile,skip_sep = skip_sep,wavelength = wavelength,notelcor = notelcor,hair_up = hair_up, hair_down = hair_down,check_hairlines = check_hairlines,spec_line = spec_line,no_align = no_align,nopause = nopause,pos_lines = pos_lines,off_ang = off_ang,binning = binning,lamp_gain = lamp_gain,up_lim = up_lim,noxmat = noxmat,nolines = nolines,save_telmat = save_telmat,nochange = nochange,norot = norot,help = help
+
+;+
+;============================================================================
+;
+;	procedure : spinor_obs  
+;
+;	purpose   : reduce SPINOR observational data
+;
+;	author    : cbeck@nso Jul 2013
+;
+;==============================================================================
+;
+;	Check number of arguments.
+;
+;==============================================================================
+if n_elements(help) ne 0 then begin
+	print
+	print, "usage:   spinor_obs,plt = plt,cont_wl = cont_wl,v2q = v2q, v2u = v2u,pos_solar = pos_solar,beta = beta,obsindex = obsindex,gainindex = gainindex,scan_range = scan_range,smooth_width = smooth_width,spec_grad = spec_grad,verbose = verbose,angle = angle,darkindex = darkindex,calindex = calindex,tel_cal = tel_cal,input_dir = input_dir,output_dir = output_dir,check_lines = check_lines,ccal_file = ccal_file,flat_file = flat_file,swap = swap,tmat_save = tmat_save,ooutfile = ooutfile,skip_sep = skip_sep,wavelength = wavelength,notelcor = notelcor,hair_up = hair_up, hair_down = hair_down,check_hairlines = check_hairlines,spec_line = spec_line,no_align = no_align,nopause = nopause,pos_lines = pos_lines,off_ang = off_ang,binning = binning,lamp_gain = lamp_gain,up_lim = up_lim,noxmat = noxmat,nolines = nolines,help = help"
+	print
+	print, "	 Reduce SPINOR data."
+        print, "         "
+	print
+	print, "	Arguments"
+        print, "                none"
+        print
+        print, "         Keywords :"
+        print, "              /plt : switch on plotting (recommended)"
+        print, "              cont_wl : fltarr(2), [l0,l1] : wavelength pixel"
+        print, "                        range to use for I->QUV cross-talk"
+        print, "                        correction. If not provided, it will"
+        print, "                        be set to the range between the two"
+        print, "                        solar lines (1082.7/1083)"
+        print, "              v2q, v2u: fltarr(1) each. Additional cross-talk"
+        print, "                        correction coefficient for V->Q, V->U."
+        print, "                        Q = Q - v2q * V"
+        print, "              pos_solar:location of solar line in pixels for"
+        print, "                        creation of |QUV| maps. If not provided,"
+        print, "                         a range around the solar lines will be used."
+        print, "              beta    : parasitic light correction;" 
+        print, "                        I = I-beta*<I>. Can remove false "
+        print, "                        polarisation signal in the telluric lines"
+        print, "              obsindex: number of observation file to be reduced"
+        print, "                        in the source directory."
+        print, "              gainindex:number of gain table to be used for the"
+        print, "                        reduction in the target directory"
+        print, "              scan_range: fltarr(2), [s0,s1]; scan steps to be"
+        print, "                        reduced. If not provided, all steps"
+        print, "                        will be reduced."
+        print, "              smooth_width: fltarr(1). Width in pixels along"
+        print, "                        the slit over which will be smoothed"
+        print, "                        to remove spikes from flat field residuals."
+        print, "              /spec_grad: switch to activate the removal of"
+        print, "                        wavelength gradients. Attention: hard-"
+        print, "                        wired range. Use not recommended."
+        print, "              /verbose : switch to activate extensive verbal"
+        print, "                        output on the terminal."
+        print, "              angle   : fltarr(1). Rotation angle for the beams."
+        print, "                        Overrules value determined in gain table"
+        print, "                        calculation."
+        print, "              darkindex:number of dark current to be used for the"
+        print, "                        reduction in the target directory"
+        print, "              calindex: number of response function to be used"
+        print, "                        in the target directory."
+        print, "              /tel_cal :  switch to de-activate telescope correction"
+        print, "                        and I -> QUV correction."
+        print, "              input_dir: source directory with raw data."
+        print, "              output_dir: destination directory for reduced data."
+        print, "              /check_lines: switch to enforce the manual selection"
+        print, "                         of the spectral lines."
+        print, "              ccal_file: use a different response function."
+        print, "                         String with the complete filepath and"
+        print, "                         filename of the xmat....sav file."
+        print, "              flat_file: use a different gain table."
+        print, "                         String with the complete filepath and"
+        print, "                         filename of the gain.....sav file."
+        print, "               /swap   : do a swap endian of the raw data."
+        print, "               tmat_save:  String with the complete filepath and"
+        print, "                         filename of the T-matrix parameter file."
+        print, "               ooutfile: use different filename for output file."
+        print, "                         Output directory will still be used."
+        print, "               /skip_sep:switch to replace missing column at"
+        print, "                         middle of IR CCD chip. Cosmetics."
+        print, "               wavelength: wavelength of data in AA"
+        print, "               /notelcor: de-activate the telescope correction"
+        print, "               hair_up: fltarr(2); range of hair line to be used for alignment, e.g."
+        print, "                        central location of hair line +-5 pixels"
+        print, "               hair_down: same for 2nd hair line, not used later on"
+        print, "               /check_hairlines: switch to enforce the manual selection"
+        print, "                         of the hair lines."
+        print, "               spec_line: fltarr(2); range around spectral line to be used for alignment."
+        print, "                          Overrules automatic determination. ? No idea why I put that in ?"
+        print, "               /no_align: de-activate sub-pixel alignment using hair line and spectral line"
+        print, "               /nopause: ignore all stop/pause commands."
+        print, "               pos_lines:fltarr(2),location of spectral lines in pixel"  
+        print, "               off_ang: fltarr(1); off set angle between telescope and calibration unit"
+        print, "               binning: fltarr(1). Size of display windows"
+        print, "                        will be divided by value to fit on"
+        print, "                        small screens."
+        print, "               lamp_gain: fltarr(dx,dy), output of  spinor_lamp_ff."
+        print, "                         Applies the gain correction from a"
+        print, "                         lamp flat to the data."
+        print, "               up_lim:   fltarr(1). Upper limit for display"
+        print, "                         of intensities. Needed usually when"
+        print, "                         the lamp flat is used."
+        print, "               /noxmat:  do not apply the response function."
+        print, "                         X is replaced with the unity matrix."
+        print, "               /nolines: use if no spectral lines are visible"
+        print, "                         in the data. Added for sky polarization "
+        print, "                         measurements."     
+        print, "               /help   : switch to active the help text above."
+        print
+return
+endif
+;==============================================================================
+;-
+
+
+close,/all
+loadct,0,/silent
+erg = get_screen_size()
+maxdimx = erg(0)
+maxdimy = erg(1)
+
+; smoothing width in pixels along slit to catch spikes
+if n_elements(smooth_width) eq 0 then smooth_width = 1
+; number of dark current to be used
+if n_elements(darkindex) eq 0 then darkindex = 0
+; number of calibration file to be used
+if n_elements(cal_file) eq 0 then cal_file = 0
+; number of gain table to be used
+if n_elements(gainindex) eq 0 then gainindex = 0
+; number of file to be reduced
+if n_elements(obsindex) eq 0 then obsindex= 0 
+; filename of save file with telescope parameters
+if n_elements(tmat_save) eq 0 then tmat_save = '/home/cbeck/laptop_teneriffa/telcal_DST/Tmatrix_May2010_4708-14125.idl'
+
+; get dark current
+ergdc = read_directory(output_dir,filter ='*dc*')
+erg = check_existence(output_dir + ergdc.files(darkindex),/read,/change)
+restore,erg(0)
+
+; get gain table
+erggain = read_directory(output_dir,filter ='*gain*')
+if n_elements(flat_file) eq 0 then begin
+   erg = check_existence(output_dir + erggain.files(gainindex) ,/read,/change)
+   restore,erg(0)
+endif else begin
+   erg = check_existence(flat_file,/read,/change)
+   restore,erg(0)
+endelse
+
+; get telescope matrix parameters
+if n_elements(tel_cal) eq 0 then begin
+   erg =  check_existence(tmat_save,/read,/change)
+   restore,erg(0)
+   tparams = tt
+   tparams(3) = 180.
+
+   if n_elements(off_ang) ne 0 then  tparams(3) = off_ang
+
+;         print,tparams(3)
+;         paused
+
+ endif
+
+; overrule rotation angle from flat field
+if n_elements(angle) ne 0 then aangle = aangle - aangle + angle
+
+; spectral offset between the beams, used to get the spectral lines at
+; the same place in all beams
+posref = mean(pposref)
+oofset = fltarr(n_slits)
+for k = 0,n_slits - 1 do begin & oofset(k) = mean(pposref(k,*,*)) - mean(pposref(0,*,*)) & endfor
+
+; get instrument calibration 
+erg = read_directory(output_dir,filter ='*xmat*')
+calfiles = erg.files
+calfile = calfiles(calindex)
+outfile1 = output_dir+calfile
+
+if n_elements(ccal_file) eq 0 then begin
+   erg = check_existence(outfile1,/read,/change)
+   restore,erg(0) 
+endif else begin
+   erg = check_existence(ccal_file,/read,/change)
+   restore,erg(0)
+endelse
+
+if n_elements(dx_final_cal) ne 0 then begin
+   if dy_final ne dy_final_cal then begin
+      print
+      print,' ! Warning !'
+      print,' spinor_obs: dimensions of beams in ff and cal are different.'
+      print,' FF  dx_final, dy_final: ',dx_final,dy_final
+      print,' CAL dx_final, dy_final: ',dx_final_cal,dy_final_cal
+      print
+      print,' This can lead to problems when expanding the X-matrix.'
+      print,' Check resulting QUV for correctness and match beam sizes if necessary.'
+      print,' ! Warning !'
+      print
+   endif
+   
+endif
+
+; normalize and invert instrument response function X, extrapolate
+; along the slit
+xxinv = xxmat - xxmat
+for kk = 0,n_separations -1 do begin
+   xmat = reform(xxmat(kk,*,*))
+   if n_elements(noxmat) ne 0 then begin
+      xmat = xmat-xmat
+      for k = 0,3 do begin
+         xmat(k,k) = 1.
+      endfor
+   endif
+   
+   xinv=invert(xmat,/double)
+   xxinv(kk,*,*) = xinv
+endfor
+
+ppos = fltarr(n_separations)
+for k = 0,n_separations-1 do begin & ppos(k) = (yyr(k)+yyr(k+1))/2. & endfor
+full_xmat = fltarr(n_slits,dy_final+1,4,4)
+for k = 0,n_slits-1 do begin & xmats = reform(xxmat(*,*,*)) & erg = extrapolate_xmat(ppos,xmats,dy_final+1,plt = 0) & full_xmat(k,*,*,*) = erg & endfor
+full_xxinv = fltarr(n_slits,dy_final+1,4,4)
+for k = 0,n_slits-1 do begin & xmats = reform(xxinv(*,*,*)) & erg = extrapolate_xmat(ppos,xmats,dy_final+1,plt = 0) & full_xxinv(k,*,*,*) = erg & endfor
+
+; get input raw data file
+ergobs = read_directory(input_dir,filter ='*map*')
+obsfiles = ergobs.files
+obsfile = obsfiles(obsindex)
+
+erg = check_existence(input_dir+obsfile,/read)
+if erg(1) ne 1 then begin
+   print,'!spinor_obs: cannot read ',input_dir+obsfile
+   print,' Please check input data file.'
+   print,' Aborting.'
+   return
+endif
+
+read_spinor,input_dir+obsfile,data,0.,hdr 
+
+; number of steps available
+nsteps = FXPAR(hdr,'NXTENS')
+read_spinor,input_dir+obsfile,data,1.,hdr 
+demod_spinor,data,i,q,u,v 
+
+; reduced data file
+if n_elements(ooutfile) eq 0 then outfile = output_dir +obsfile+'.reduced.dat' else outfile = ooutfile
+erg = check_existence(outfile,/write,/change)
+outfile = erg(0)
+
+; file of overview maps
+outfile2 = outfile+'.sav'
+
+; set scan range to full size or use explicit scan range
+if n_elements(scan_range) eq 0 then scan_range = [0,nsteps-1]
+
+; number of steps to be reduced
+nsteps_total = scan_range(1)-scan_range(0)+1.
+
+; storage arrays for line positions and image shifts
+sshifts = fltarr(n_slits,nsteps_total,2)
+llinepos = fltarr(n_slits,nsteps_total,2)
+
+; 2D overview maps I_c, |QUV|
+ic = fltarr(nsteps_total*n_slits,dy_final+1)
+totq = fltarr(nsteps_total*n_slits,dy_final+1)
+totu = fltarr(nsteps_total*n_slits,dy_final+1)
+totv = fltarr(nsteps_total*n_slits,dy_final+1)
+
+i2qq = fltarr(nsteps_total*n_slits,dy_final+1)
+i2uu = fltarr(nsteps_total*n_slits,dy_final+1)
+i2vv = fltarr(nsteps_total*n_slits,dy_final+1)
+
+if n_elements(binning) eq 0 then binning = 1. else binning = float(binning)
+
+yydim = (dy_final+1) / binning
+
+if (4*dx_final/binning lt maxdimx and yydim gt maxdimy) then yydim = maxdimy 
+if (4*dx_final/binning ge maxdimx and yydim gt maxdimy/2.) then yydim = maxdimy/2.
+
+; do plotting
+if n_elements(plt) ne 0 then begin
+   if 4*dx_final/binning lt maxdimx then begin
+   for k = 0,n_slits -1 do begin & window,k,xs = 4*dx_final/binning,ys = yydim,title = 'Stokes spectra slit '+num2string(k)+' File: '+obsfile & endfor
+   endif else begin
+
+   for k = 0,n_slits -1 do begin & window,k,xs = 2*dx_final,ys = 2*yydim,title = 'Stokes spectra slit '+num2string(k)+' File: '+obsfile & endfor
+   endelse
+   if n_slits*nsteps_total*2. ge maxdimx then xxssize = maxdimx else xxssize =  n_slits*nsteps_total*2
+   window,4,xs = xxssize,ys = 600,title = '2D maps'+' File: '+obsfile
+endif
+
+; switches
+erg = 0.
+erg1 = 0.
+
+if n_elements(save_telmat) ne 0 then begin
+
+   fulltelmat = fltarr(scan_range(1)-scan_range(0)+1.,4,4)
+   telmattimes = fltarr(scan_range(1)-scan_range(0)+1.)
+   telmatgeom =  fltarr(scan_range(1)-scan_range(0)+1.,3)
+
+
+endif
+
+
+
+; for spectroscopic data: int_only = 1, is determined from image size
+; later on
+int_only = 0.
+
+print
+print,' Writing to file...',outfile
+print
+
+; open output file
+openw,outunit,outfile,/get_lun
+
+; loop over scan steps
+for k = scan_range(0),scan_range(1) do begin
+
+; get timing for estimate of duration
+   oldt = systime(1)
+
+; obsolete----------------------------
+; save last image as backup for missing files (NSO raid has bad file
+; pointers!) missing step will be replaced with pervious step
+;   if k gt scan_range(0) then dumold = dum + dc
+; obsolete----------------------------
+
+; read in data
+   read_spinor,input_dir+obsfile,data,1.+k,hdr 
+   demod_spinor,data,i,q,u,v 
+
+; do swap endian if needed
+   if n_elements(swap) ne 0 then begin
+      i = swap_endian(i)
+      q = swap_endian(q)
+      u = swap_endian(u)
+      v = swap_endian(v)
+   endif
+
+; subtract dark current
+   i = i - dc
+
+   if n_elements(lamp_gain) ne 0 then begin
+    
+
+; define array to store beams  
+      lamp_ibeams = fltarr(n_slits,2,dx+1,dy+1)
+
+; cut out the part beams for n slits
+   for kk = 0,n_slits-1 do begin &  ii_temp = lamp_gain & lamp_ibeams(kk,0,*,*) = ii_temp(posx(kk,0):posx(kk,1),posy(kk,0):posy(kk,1))  & lamp_ibeams(kk,1,*,*) = ii_temp(posx(kk,0):posx(kk,1),posy(kk,2):posy(kk,3)) & endfor
+
+; flip upper beam in y
+for kk =0,n_slits-1 do begin & dd = reform(lamp_ibeams(kk,1,*,*)) & lamp_ibeams(kk,1,*,*) = reverse(dd,2) & endfor 
+
+; cut out the aligned part beams for n slits
+   lamp_ibeams1 = fltarr(n_slits,2,dx_final+1,dy_final+1)
+
+for kk = 0,n_slits-1 do begin & lamp_ibeams1(kk,0,*,*) =  lamp_ibeams(kk,0,posx_final(kk,0):posx_final(kk,1), posy_final(kk,0): posy_final(kk,1)) & lamp_ibeams1(kk,1,*,*) =  lamp_ibeams(kk,1,posx_final(kk,2):posx_final(kk,3), posy_final(kk,2): posy_final(kk,3)) & endfor
+
+; apply beam rotation
+for kk = 0,n_slits -1 do begin  & lamp_ibeams1(kk,0,*,*) =  rot(reform(lamp_ibeams1(kk,0,*,*)),aangle(kk),/interp) & lamp_ibeams1(kk,1,*,*) =  rot(reform(lamp_ibeams1(kk,1,*,*)),aangle(kk),/interp)  & endfor 
+
+      i = i/lamp_gain
+      q = q/lamp_gain
+      u = u/lamp_gain
+      v = v/lamp_gain
+   endif
+
+   ff = where(i le 0 or finite(i) ne 1)
+   if ff(0) ne -1 then i(ff) = 1.
+   ff = where(finite(q) ne 1)
+   if ff(0) ne -1 then q(ff) = 0.
+   ff = where(finite(u) ne 1)
+   if ff(0) ne -1 then u(ff) = 0.
+   ff = where(finite(v) ne 1)
+   if ff(0) ne -1 then v(ff) = 0.
+
+; define array to store beams  
+   ibeams = fltarr(n_slits,2,dx+1,dy+1,4)
+
+; cut out the part beams for n slits
+for kk = 0,n_slits-1 do begin &  ii_temp = i & ibeams(kk,0,*,*,0) = ii_temp(posx(kk,0):posx(kk,1),posy(kk,0):posy(kk,1))  & ibeams(kk,1,*,*,0) = ii_temp(posx(kk,0):posx(kk,1),posy(kk,2):posy(kk,3)) & qq_temp = q & ibeams(kk,0,*,*,1) = qq_temp(posx(kk,0):posx(kk,1),posy(kk,0):posy(kk,1)) & ibeams(kk,1,*,*,1) = qq_temp(posx(kk,0):posx(kk,1),posy(kk,2):posy(kk,3)) & uu_temp = u & ibeams(kk,0,*,*,2) = uu_temp(posx(kk,0):posx(kk,1),posy(kk,0):posy(kk,1)) & ibeams(kk,1,*,*,2) = uu_temp(posx(kk,0):posx(kk,1),posy(kk,2):posy(kk,3)) & vv_temp = v & ibeams(kk,0,*,*,3) = vv_temp(posx(kk,0):posx(kk,1),posy(kk,0):posy(kk,1)) & ibeams(kk,1,*,*,3) = vv_temp(posx(kk,0):posx(kk,1),posy(kk,2):posy(kk,3)) & endfor
+
+; flip upper beam in y
+for kk =0,n_slits-1 do begin & for kkk =0,3 do begin & dd = reform(ibeams(kk,1,*,*,kkk)) & ibeams(kk,1,*,*,kkk) = reverse(dd,2) & endfor & endfor
+
+; cut out the aligned part beams for n slits
+   ibeams1 = fltarr(n_slits,2,dx_final+1,dy_final+1,4)
+
+for kk = 0,n_slits-1 do begin & ibeams1(kk,0,*,*,*) =  ibeams(kk,0,posx_final(kk,0):posx_final(kk,1), posy_final(kk,0): posy_final(kk,1),*) & ibeams1(kk,1,*,*,*) =  ibeams(kk,1,posx_final(kk,2):posx_final(kk,3), posy_final(kk,2): posy_final(kk,3),*) & endfor
+
+; apply gain correction
+for kk = 0,n_slits -1 do begin &  for kkk = 0,3 do begin & ibeams1(kk,0,*,*,kkk) =  ibeams1(kk,0,*,*,kkk) /gaintable(kk,0,*,*,0) & ibeams1(kk,1,*,*,kkk) =  ibeams1(kk,1,*,*,kkk) / gaintable(kk,1,*,*,0)  & endfor & endfor
+
+; apply beam rotation
+for kk = 0,n_slits -1 do begin &  for kkk = 0,3 do begin & ibeams1(kk,0,*,*,kkk) =  rot(reform(ibeams1(kk,0,*,*,kkk)),aangle(kk),/interp) & ibeams1(kk,1,*,*,kkk) =  rot(reform(ibeams1(kk,1,*,*,kkk)),aangle(kk),/interp)  & endfor & endfor
+
+; at first scan step, determine location of spectral lines
+   if ( (k-scan_range(0))) eq 0 then begin
+
+; average profile
+      iline = total(reform(ibeams1(0,0,*,*,0)),2)
+      
+      if max(iline) eq 0 then iline = iline + 1.
+      iline = abs(iline/float(max(iline))-1)
+
+                                ; search for lines automatically 
+      n = length(iline)
+      ilobes = fltarr(n-4)
+      threshh = .2
+      ilobeindex = 0.
+      for kkk = 5,n-5 do begin
+         if iline(kkk) gt max(iline(kkk+1:kkk+4)) and iline(kkk) gt max(iline(kkk-4:kkk-1)) and iline(kkk) gt threshh then begin
+            ilobes(ilobeindex) = kkk
+            ilobeindex = ilobeindex+1
+         endif
+      endfor
+            
+      if n_elements(pos_lines) ne 0 then begin
+         ilobes = pos_lines
+         ilobeindex = n_elements(ilobes)
+      endif
+
+      if n_elements(verbose) ne 0 then print,ilobeindex,' spectral lines found.'
+
+      wdel17 = 0.
+
+; mark center of lines manually
+      if ilobeindex ne 2 or n_elements(check_lines) ne 0 then begin
+         print,' Automatic detection of spectral lines failed.'
+         print,' Please select lines manually:'
+         window,17,title = 'Please mark 2 spectral lines'
+         wdel17 = 1.
+         !p.multi = 0
+         plot,iline 
+         ilobeindex = 0.
+         ilobes = fltarr(n-4)
+         while ilobeindex ne 2 do begin
+            wset,17
+            cursor,x,y,/data,/wait
+            if !mouse.button eq 1 then begin
+               ilobes(ilobeindex) = x
+               ilobeindex = ilobeindex+1
+               print,'Line ',ilobeindex
+               print,'at ',x
+               oplot,[x,x],[0,1]
+               wait,.5
+            endif
+            if ilobeindex eq 2 then begin
+               ans = read_keyboard('Selection okay y(es)/n(o) ')
+               if ans eq 'n' then begin
+                  ilobeindex = 0
+                  plot,iline    
+               endif
+            endif
+         endwhile
+      endif
+      ilobes = ilobes(0:ilobeindex-1)
+      ilobes = ilobes(sort(ilobes))
+
+      pos_lines = ilobes
+      
+   ; location of spectral line to be used for alignment purposes
+   ; should be set to Si 1082.7 nm 
+      range_telu = [-15,15]+ilobes(0)
+      
+      if n_elements(spec_line) eq 0 then begin
+         ilo = range_telu(0)
+         ihi = range_telu(1)
+      endif else begin
+         ilo = spec_line(0)
+         ihi = spec_line(1)
+      endelse
+               
+
+; location of solar lines for |QUV| maps
+      if n_elements(pos_solar) eq 0 then pos_solar = [ilobes(0)-30,ilobes(0)+30.]
+
+; wavelength range for I-> QUV correction
+      if n_elements(cont_wl) eq 0 then cont_wl = [ilobes(0)+30,ilobes(1)-30]    
+      cont_wl = cont_wl(sort(cont_wl))
+
+      if n_elements(hair_up) eq 0 then begin
+
+; average profile
+         iline = total(transpose(reform(ibeams1(0,0,*,*,0)*gaintable(0,0,*,*))),2)
+         if n_elements(lamp_gain) ne 0 then iline = total(transpose(reform(ibeams1(0,0,*,*,0)*gaintable(0,0,*,*)*lamp_ibeams1(0,0,*,*))),2)
+
+
+         if max(iline) eq 0 then iline = iline + 1.
+         iline = abs(iline/float(max(iline))-1)
+   
+                                ; search for hair lines automatically 
+         n = length(iline)
+         ilobes = fltarr(n-4)
+         threshh = .5
+         ilobeindex = 0.
+         for kkk = 5,n-5 do begin
+            if iline(kkk) gt max(iline(kkk+1:kkk+4)) and iline(kkk) gt max(iline(kkk-4:kkk-1)) and iline(kkk) gt threshh then begin
+               ilobes(ilobeindex) = kkk
+               ilobeindex = ilobeindex+1
+            endif
+         endfor
+   
+         if n_elements(verbose) ne 0 then print,ilobeindex,'  hairline found.'
+   
+         wdel17 = 0.
+         ans = 1.
+
+; mark center of lines manually
+         if ilobeindex eq 0 or ilobeindex gt 2 or n_elements(check_hairlines) ne 0 then begin
+            print
+            print,' Automatic detection of hairlines failed.'
+            ans = read_keyboard('How many hairlines 1/2 : ',/number)
+            if ans eq 'nonumber' or ans eq 0 then ans = 1.
+            print,' Please select hair lines manually:'
+            window,17,title ='Please mark hair lines'
+            wdel17 = 1.
+            !p.multi = 0
+            plot,iline 
+            ilobeindex = 0.
+            ilobes = fltarr(n-4)
+            while ilobeindex ne ans do begin
+               wset,17
+               cursor,x,y,/data,/wait
+               if !mouse.button eq 1 then begin
+                  ilobes(ilobeindex) = x
+                  ilobeindex = ilobeindex+1
+                  print,'Hairline ',ilobeindex
+                  print,'at ',x
+                  oplot,[x,x],[0,1]
+                  wait,.5
+               endif
+               if ilobeindex eq ans then begin
+                  aans = read_keyboard('Selection okay y(es)/n(o) ')
+                  if aans eq 'n' then begin
+                     ilobeindex = 0
+                     plot,iline    
+                  endif
+               endif
+            endwhile
+         endif
+         ilobes = ilobes(0:ilobeindex-1)
+         ilobes = ilobes(sort(ilobes))
+   
+   ; location of spectral hair line to be used for alignment purposes
+         if ans eq 1 then hair_up = [ilobes(0)-5,ilobes(0)+5] else begin
+            hair_up = [ilobes(1)-5,ilobes(1)+5]
+            hair_down = [ilobes(0)-5,ilobes(0)+5]
+            if hair_down(0) lt 0 then hair_down(0) = 0
+         endelse
+         if hair_up(1) gt dy_final then hair_up(1) = dy_final
+
+         if n_elements(plt) ne 0 then begin
+            window,17,title ='Hairlines'
+            plot,iline
+            oplot,[0,0]+hair_up(0),[0,2]
+            oplot,[0,0]+hair_up(1),[0,2]
+            if ans eq 2 then begin
+               oplot,[0,0]+hair_down(0),[0,2]
+               oplot,[0,0]+hair_down(1),[0,2]
+            endif
+            print,ans,' hairlines found.'
+            if n_elements(nopause) eq 0 then paused
+            wdel17 = 1.
+         endif
+      endif
+   endif
+
+; storage array for merged beams
+   ibeams_merged =  fltarr(n_slits,dx_final+1,dy_final+1,4)
+
+; apply demodulation
+   for kk = 0,n_slits -1 do begin    
+
+      im1a = reform(ibeams1(kk,0,*,*,0))
+      im2a = reform(ibeams1(kk,0,*,*,1))
+      im3a = reform(ibeams1(kk,0,*,*,2))
+      im4a = reform(ibeams1(kk,0,*,*,3))
+      
+      im1b = reform(ibeams1(kk,1,*,*,0))
+      im2b = reform(ibeams1(kk,1,*,*,1))
+      im3b = reform(ibeams1(kk,1,*,*,2))
+      im4b = reform(ibeams1(kk,1,*,*,3))
+
+if n_elements(no_align) eq 0 then begin
+
+; align beams with subpixel precision
+      i1atemp  = im1a*gaintable(kk,0,*,*)
+
+      if n_elements(lamp_gain) ne 0 then i1atemp  = im1a*gaintable(kk,0,*,*)*lamp_ibeams1(kk,0,*,*)
+
+      i1atemp  = transpose(i1atemp)
+
+      im1atemp = transpose(im1a)
+      im2atemp = transpose(im2a)
+      im3atemp = transpose(im3a)
+      im4atemp = transpose(im4a)
+     
+      i1btemp  = im1b*gaintable(kk,1,*,*)
+
+      if n_elements(lamp_gain) ne 0 then i1btemp  = im1b*gaintable(kk,1,*,*)*lamp_ibeams1(kk,1,*,*)
+
+      i1btemp  = transpose(i1btemp)
+
+      im1btemp = transpose(im1b)
+      im2btemp = transpose(im2b)
+      im3btemp = transpose(im3b)
+      im4btemp = transpose(im4b)
+
+; align in spatial direction with hair line 
+      deskew1,i1atemp, im2atemp, im3atemp, im4atemp,hair_up(0),hair_up(1),0,dx_final,0,dx_final,2,/straight
+      i1atemp  = im1a*gaintable(kk,0,*,*)
+
+      if n_elements(lamp_gain) ne 0 then i1atemp  = im1a*gaintable(kk,0,*,*)*lamp_ibeams1(kk,0,*,*)
+     
+      i1atemp  = transpose(i1atemp)
+      dum =  i1atemp -  i1atemp 
+      deskew1,i1atemp,im1atemp,dum,dum,hair_up(0),hair_up(1),0,dx_final,0,dx_final,2,/straight
+  
+      wave_shift_spinor,i1atemp,i1btemp, im2btemp, im3btemp, im4btemp,hair_up(0),hair_up(1),0,dx_final,2,/straight
+      i1btemp  = im1b*gaintable(kk,1,*,*)
+      if n_elements(lamp_gain) ne 0 then i1btemp  = im1b*gaintable(kk,1,*,*)*lamp_ibeams1(kk,1,*,*)
+      i1btemp  = transpose(i1btemp)
+      wave_shift_spinor,i1atemp,i1btemp,im1btemp,dum,dum,hair_up(0),hair_up(1),0,dx_final,2,/straight
+
+; align in spectral direction with spectral line
+      im1a = transpose(im1atemp)
+      im2a = transpose(im2atemp)
+      im3a = transpose(im3atemp)
+      im4a = transpose(im4atemp)
+     
+      im1b = transpose(im1btemp)
+      im2b = transpose(im2btemp)
+      im3b = transpose(im3btemp)
+      im4b = transpose(im4btemp)
+
+      wave_shift_spinor,im1a,im1b,im2b,im3b,im4b,ilo,ihi,0,dy_final,2,/straight
+   endif
+
+
+; capture intensity spikes along the slit that come from flat field residuals
+      if smooth_width gt 1 then begin
+  ; spike correction
+         ff1a = total(im1a(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff2a = total(im2a(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff3a = total(im3a(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff4a = total(im4a(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff1b = total(im1b(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff2b = total(im2b(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff3b = total(im3b(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+         ff4b = total(im4b(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+
+         corr1a = ff1a / smooth(ff1a,smooth_width)
+         corr2a = ff2a / smooth(ff2a,smooth_width)
+         corr3a = ff3a / smooth(ff3a,smooth_width)
+         corr4a = ff4a / smooth(ff4a,smooth_width)
+         corr1b = ff1b / smooth(ff1b,smooth_width)
+         corr2b = ff2b / smooth(ff2b,smooth_width)
+         corr3b = ff3b / smooth(ff3b,smooth_width)
+         corr4b = ff4b / smooth(ff4b,smooth_width)
+         
+     ; apply spike correction     
+      for kkk = 0,dx_final do begin &  im1a(kkk,*) =  im1a(kkk,*) / corr1a  &im2a(kkk,*) =  im2a(kkk,*) / corr2a  &im3a(kkk,*) =  im3a(kkk,*) / corr3a  &im4a(kkk,*) =  im4a(kkk,*) / corr4a  & im1b(kkk,*) =  im1b(kkk,*) / corr1b  & im2b(kkk,*) =  im2b(kkk,*) / corr2b  & im3b(kkk,*) =  im3b(kkk,*) / corr3b  &im4b(kkk,*) =  im4b(kkk,*) / corr4b & endfor
+endif
+
+      i1a = im1a ;-im1a
+      i2a = im2a ;-im1a
+      i3a = im3a ;-im1a
+      i4a = im4a ;-im1a
+      
+      i1b = im1b ;-im1a
+      i2b = im2b ;-im1a
+      i3b = im3b ;-im1a
+      i4b = im4b ;-im1a
+
+      if n_elements(tel_cal) eq 0 and n_elements(nolines) eq 0 then begin
+         ma = mean(i1a)
+         mb = mean(i1b)
+         
+         i1b = i1b*ma/mb
+         i2b = i2b*ma/mb
+         i3b = i3b*ma/mb
+         i4b = i4b*ma/mb
+      endif
+
+
+; merge the beams
+      ii1 = (i1a+i1b)/2.
+      qq1 = (i2a-i2b)/2.
+      uu1 = (i3a-i3b)/2.
+      vv1 = (i4a-i4b)/2.
+    
+      ii1_temp = ii1-ii1
+      qq1_temp = ii1-ii1
+      uu1_temp = ii1-ii1
+      vv1_temp = ii1-ii1
+
+; apply inverse response function
+      for kkk =0,dy_final do begin
+         ii1_temp(*,kkk) = full_xxinv(kk,kkk,0,0)*ii1(*,kkk)+full_xxinv(kk,kkk,1,0)*qq1(*,kkk)+full_xxinv(kk,kkk,2,0)*uu1(*,kkk)+full_xxinv(kk,kkk,3,0)*vv1(*,kkk)
+         qq1_temp(*,kkk) = full_xxinv(kk,kkk,0,1)*ii1(*,kkk)+full_xxinv(kk,kkk,1,1)*qq1(*,kkk)+full_xxinv(kk,kkk,2,1)*uu1(*,kkk)+full_xxinv(kk,kkk,3,1)*vv1(*,kkk)
+         uu1_temp(*,kkk) = full_xxinv(kk,kkk,0,2)*ii1(*,kkk)+full_xxinv(kk,kkk,1,2)*qq1(*,kkk)+full_xxinv(kk,kkk,2,2)*uu1(*,kkk)+full_xxinv(kk,kkk,3,2)*vv1(*,kkk)
+         vv1_temp(*,kkk) = full_xxinv(kk,kkk,0,3)*ii1(*,kkk)+full_xxinv(kk,kkk,1,3)*qq1(*,kkk)+full_xxinv(kk,kkk,2,3)*uu1(*,kkk)+full_xxinv(kk,kkk,3,3)*vv1(*,kkk)
+      endfor
+
+      ii1 = ii1_temp
+      qq1 = qq1_temp
+      uu1 = uu1_temp
+      vv1 = vv1_temp
+
+;pp = 1
+;if pp eq 1 then begin
+
+; apply telescope correction
+      if n_elements(tel_cal) eq 0 then begin
+
+         tel_azimuth = FXPAR(hdr,'DST_AZ')
+         tel_elevation = FXPAR(hdr,'DST_EL')
+         table_angle = FXPAR(hdr,'DST_TBL')
+         tel_p = FXPAR(hdr,'DST_PEE')
+
+; get wavelength from file header if not provided
+         if n_elements(wavelength) eq 0 then begin
+            wavelength =  FXPAR(hdr,'WAVELENG')
+            wavelength = string2num(wavelength,divider ='In')
+            wavelength =  wavelength * 10.
+         endif
+         
+         if ( (k-scan_range(0))) eq 0 then begin
+            print
+            print,' spinor_obs: wavelength of data is: ',wavelength
+            print,' Use keyword "wavelength" if the header info is incorrect !'
+            print
+         endif
+        
+; get telescope matrix
+         tmtx  = ibis_tmtx(tparams, wavelength, tel_azimuth, tel_elevation, table_angle,nochange = nochange)
+         tmtx = tmtx/tmtx(0,0)
+        
+         iold = ii1
+         vold = vv1
+         uold = uu1
+         qold = qq1
+
+         if n_elements(save_telmat) ne 0 then begin
+            fulltelmat(k,*,*) = tmtx
+            telmatgeom(k,*) = [tel_azimuth, tel_elevation, table_angle]
+            
+; DST_TIME= '2016-03-10T16:05:01.032' / When DST info was last updated (UTC)  
+
+            erg = fxpar(hdr,'DST_TIME')
+            erg = string2num(erg,divider = 'T:.')
+            ttime = erg(1)+erg(2)/60.+erg(3)/3600.
+            telmattimes(k) = ttime
+
+         endif
+
+         Tinv = INVERT(tmtx,/double) 
+;stop
+
+   ;      qq1 = -qq1
+   ;      uu1 = -uu1
+   ;      vv1 = -vv1
+
+         if n_elements(notelcor) eq 0 then begin
+; apply inverse telescope matrix      
+            ii2  = Tinv(0,0)*ii1+Tinv(1,0)*qq1+Tinv(2,0)*uu1+Tinv(3,0)*vv1
+            qq2  = Tinv(0,1)*ii1+Tinv(1,1)*qq1+Tinv(2,1)*uu1+Tinv(3,1)*vv1
+            uu2  = Tinv(0,2)*ii1+Tinv(1,2)*qq1+Tinv(2,2)*uu1+Tinv(3,2)*vv1
+            vv2  = Tinv(0,3)*ii1+Tinv(1,3)*qq1+Tinv(2,3)*uu1+Tinv(3,3)*vv1
+
+         endif else begin
+   
+            ii2  =  ii1
+            qq2  =  qq1
+            uu2  =  uu1
+            vv2  =  vv1
+
+         endelse
+
+         if n_elements(notelcor) eq 0 then begin
+
+; correct QU for parallactic angle
+         DST_earth_latitude = 32.786 * !dtor
+         r_frame_sphtri, DST_earth_latitude , tel_azimuth * !dtor, tel_elevation * !dtor,siteha, sitedc, neg_parallactic
+         parallactic = -neg_parallactic
+
+         rotn = !pi + parallactic - tel_p * !dtor
+         if n_elements(norot) ne 0 then rotn = 0. ; !pi + parallactic
+
+         crot = cos(-2.*rotn) 
+         srot = sin(-2.*rotn)
+
+         temp0 =  crot*qq2 + srot*uu2
+         temp1 = -srot*qq2 + crot*uu2
+
+         qq1 = temp0
+         uu1 = temp1
+
+         vv1 = vv2
+         ii1 = ii2
+
+      endif else begin
+         
+         ii1  =  ii2
+         qq1  =  qq2
+         uu1  =  uu2
+         vv1  =  vv2
+
+      endelse
+
+      endif
+
+;   endif
+
+; remove intensity < 0
+      ff = where(ii1 le 0)
+      if ff(0) ne -1 then ii1(ff) = 1.
+
+; store calibrated IQUV 
+      ibeams_merged(kk,*,*,0) = ii1
+      ibeams_merged(kk,*,*,1) = qq1
+      ibeams_merged(kk,*,*,2) = uu1
+      ibeams_merged(kk,*,*,3) = vv1
+   endfor
+
+; correct for I -> QUV cross talk
+     for kk = 0,n_slits -1 do begin
+     
+        ii1 = reform( ibeams_merged(kk,*,*,0))
+  
+; correct I for parasitic light. Must be done before I->QUV cross-talk
+; correction !
+        if n_elements(beta) ne 0 then ii1 = ii1 - beta*mean(ii1)
+
+        qq1 = reform( ibeams_merged(kk,*,*,1))
+        uu1 = reform( ibeams_merged(kk,*,*,2))
+        vv1 = reform( ibeams_merged(kk,*,*,3))
+
+; shift beams to have spectral line at same location
+        if n_slits gt 1 then begin
+           ii1 = shift_frac(ii1,  -oofset(kk)  ,0,'C')
+           qq1 = shift_frac(qq1,  -oofset(kk)  ,0,'C')
+           uu1 = shift_frac(uu1,  -oofset(kk)  ,0,'C')
+           vv1 = shift_frac(vv1,  -oofset(kk)  ,0,'C')
+        endif
+
+i2qslit = fltarr(dy_final+1)
+i2uslit = fltarr(dy_final+1)
+i2vslit = fltarr(dy_final+1)
+
+
+;save,ii1,qq1,uu1,vv1,cont_wl,filename = '/net/koa/export/data/cbeck/obs2016/t10;1/22_march_2016/SPINOR_reduced_4588_220316/temp/i2quvtest_526.sav'
+;stop
+
+; correct I->QUV cross-talk row by row    
+        for kkk = 0,dy_final do begin
+           iline = reform(ii1(*,kkk))
+           qline = reform(qq1(*,kkk))
+           uline = reform(uu1(*,kkk))
+           vline = reform(vv1(*,kkk))
+
+; deactivate  I->QUV cross-talk correction for /telcal
+           if n_elements(tel_cal) eq 0 and n_elements(nolines) eq 0 then begin
+              i2q = mean( qline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)) )
+              i2u = mean( uline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)))
+              i2v = mean( vline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)))
+
+           ;   i2q = median( qline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)) )
+            ;  i2u = median( uline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)))
+             ; i2v = median( vline(cont_wl(0):cont_wl(1))/iline(cont_wl(0):cont_wl(1)))
+
+              qline = qline - i2q*iline
+              uline = uline - i2u*iline
+              vline = vline - i2v*iline
+
+              i2qslit(kkk) = i2q
+              i2uslit(kkk) = i2u
+              i2vslit(kkk) = i2v
+
+           endif
+
+; correct additional V->QU cross-talk
+           if n_elements(v2q) ne 0 then begin
+              qline = qline - v2q*vline
+           endif
+           if n_elements(v2u) ne 0 then begin
+              uline = uline - v2u*vline
+           endif
+         
+           qq1(*,kkk) = qline
+           uu1(*,kkk) = uline
+           vv1(*,kkk) = vline
+        endfor
+
+        i2qq(kk*nsteps_total+k-scan_range(0),*) = i2qslit
+        i2uu(kk*nsteps_total+k-scan_range(0),*) = i2uslit
+        i2vv(kk*nsteps_total+k-scan_range(0),*) = i2vslit
+
+
+       ibeams_merged(kk,*,*,0) = ii1
+       ibeams_merged(kk,*,*,1) = qq1
+       ibeams_merged(kk,*,*,2) = uu1
+       ibeams_merged(kk,*,*,3) = vv1
+
+  ; do plotting
+       if n_elements(plt) ne 0 then begin
+          wset,kk
+
+          if n_elements(up_lim) eq 0 then up_lim = max(ii1)
+          if 4*dx_final/binning lt maxdimx then begin
+             tvscl,congrid(ii1,dx_final/binning,yydim,/interp) >0 < up_lim,0,0
+             tvscl,congrid(qq1/ii1,dx_final/binning,yydim,/interp) >(-.2) < .2,dx_final/binning,0
+             tvscl,congrid(uu1/ii1,dx_final/binning,yydim,/interp)>(-.2) < .2,dx_final*2/binning,0
+             tvscl,congrid(vv1/ii1,dx_final/binning,yydim,/interp)>(-.2) < .2,dx_final*3/binning,0
+             xyouts,findgen(4)/4.+.01,.01,['I','Q','U','V'],/normal
+
+          endif else begin
+             tvscl,congrid(ii1,dx_final,yydim,/interp) >0 < up_lim,0,0
+             tvscl,congrid(qq1/ii1,dx_final,yydim,/interp) >(-.2) < .2,dx_final,0
+             tvscl,congrid(uu1/ii1,dx_final,yydim,/interp)>(-.2) < .2,dx_final*0,yydim
+             tvscl,congrid(vv1/ii1,dx_final,yydim,/interp)>(-.2) < .2,dx_final*1,yydim
+             xyouts,findgen(2)/2.+.01,.01,['I','Q'],/normal
+             xyouts,findgen(2)/2.+.01,.51,['U','V'],/normal
+
+          endelse
+       endif
+
+; create overview maps
+       ic(kk*nsteps_total+k-scan_range(0),*) = total(ii1(cont_wl(0):cont_wl(1),*),1)/float(cont_wl(1)-cont_wl(0)+1.)
+       totq(kk*nsteps_total+k-scan_range(0),*) = total( abs ( qq1(pos_solar(0):pos_solar(1),*)/ii1(pos_solar(0):pos_solar(1),*)),1)
+       totu(kk*nsteps_total+k-scan_range(0),*) = total( abs ( uu1(pos_solar(0):pos_solar(1),*)/ii1(pos_solar(0):pos_solar(1),*)),1)
+       totv(kk*nsteps_total+k-scan_range(0),*) = total( abs ( vv1(pos_solar(0):pos_solar(1),*)/ii1(pos_solar(0):pos_solar(1),*)),1)
+
+   endfor
+
+; do plotting
+     if n_elements(plt) ne 0 then begin
+        wset,4
+        tvscl,congrid(ic,xxssize/2.,300,/interp) > 10 ,0,0
+        tvscl,alog(congrid(totq,xxssize/2.,300,/interp) > 0.0001),xxssize/2.,0
+        tvscl,alog(congrid(totu,xxssize/2.,300,/interp) > 0.0001),0,300
+        tvscl,alog(congrid(totv,xxssize/2.,300,/interp) > 0.0001),xxssize/2.,300
+
+        xyouts,findgen(2)/2.+.01,.01,['I','|Q|'],/normal
+        xyouts,findgen(2)/2.+.01,.51,['|U|','|V|'],/normal
+     endif
+
+; for spectroscopic data, kick out QUV again
+     if int_only eq 1 then begin
+        ibeams_merged = reform(ibeams_merged(*,*,*,0))
+     endif
+
+; write out data
+     writeu,outunit,ibeams_merged
+
+; timting information
+     print,' Scan steps to go: ',scan_range(1)- k
+     newt = systime(1)
+   
+     secsperstep = newt - oldt
+     full_time = secsperstep*(scan_range(1)- k)
+     print,' Time per scan step: ', secsperstep,' s'
+     print,' Estimated time of termination: ',floor(full_time/3600),' h',floor( (full_time - floor(full_time/3600)*3600)/60 ),' min',round(full_time mod 60),' s'
+     if wdel17 eq 1 then begin
+        wdelete,17
+        wdel17 = 0.
+     endif
+
+endfor
+
+; close output file
+free_lun,outunit
+
+; save overview maps and other info
+if n_elements(save_telmat) eq 0 then  save,ic,totq,totu,totv,sshifts,v2q,v2u,llinepos,pos_solar,pos_lines,dx_final,dy_final,n_slits,int_only ,filename = outfile2 else  save,ic,totq,totu,totv,sshifts,v2q,v2u,llinepos,pos_solar,pos_lines,dx_final,dy_final,n_slits,int_only,fulltelmat ,telmattimes,telmatgeom,i2qq,i2uu,i2vv,filename = outfile2
+
+
+
+; delete windows
+if wdel17 eq 1 then wdelete,17
+
+;stop
+
+end
+

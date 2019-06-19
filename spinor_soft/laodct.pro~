@@ -1,0 +1,33 @@
+pro laodct,ct_number,silent = silent
+
+if n_elements(silent) eq 0 then silent = 1
+
+if ct_number lt 41 then loadct,ct_number,silent = silent
+
+if ct_number eq 41 then begin
+
+restore,'/home/cbeck/laptop_teneriffa/spinor_soft/ct41.sav'
+tvlct,red,green,blue
+
+
+endif
+
+if ct_number eq 42 then begin
+
+restore,'/home/cbeck/laptop_teneriffa/spinor_soft/ct41_wowhite.sav'
+tvlct,red,green,blue
+
+
+endif
+
+if ct_number eq 43 then begin
+
+restore,'/home/cbeck/laptop_teneriffa/spinor_soft/ct41_wattop.sav'
+tvlct,red,green,blue
+
+
+endif
+
+
+
+end

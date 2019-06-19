@@ -1,0 +1,166 @@
+function check_existence,infile,change = change, read_file = read_file, write_file = write_file,verbose = verbose
+
+;+
+;============================================================================
+;
+;	function : check_existence
+;
+;	purpose  : check if file exist (read) or can be modified (write)
+;
+;       calls    : spawn, size (idl-implemented), read_keyboard.pro
+;
+;	written  : cbeck@KIS 3/03
+;
+;==============================================================================
+;
+;	Check number of arguments.
+;
+;==============================================================================
+if (n_params() lt 1) then begin
+	print
+	print, "usage:  erg = check_existence(infile,change=change,read_file ="
+        print, "                              read_file,write_file=write_file,"
+        print, "                              ,verbose = verbose)"
+	print
+	print, "       Check if infile exists (read) or exists and can be"
+        print, "       modified (write). Default is check read and write."
+        print
+	print, "	Arguments"
+        print, "                Input :"
+        print, "		infile : filename as string"
+        print
+        print, "                Output:"
+        print, "                vector(2), [read = 0 or 1 ,write = 0 or 1 ]"
+        print, "                read = 1 : exist"
+        print, "                write = 1 : can be created"
+        print
+        print, "        Keywords:"
+        print, "                /change    : query user if negative result"
+        print, "                             abort with <cr>"
+        print, "                /read_file, /write_file : check if file is"
+        print, "                              read-/writeable"
+        print, "                /verbose   : print run-time info"
+        print
+        return,0
+endif
+;==============================================================================
+;-
+
+;-----------------------------------------------------------------------------
+; check file attributes
+;-----------------------------------------------------------------------------
+read_status = 0 
+write_status = 0
+
+tt = size(infile,/type)
+
+if tt(0) eq 0 then begin
+print, ' Check_existence: Infile not defined ! Aborting...'
+stop
+endif
+
+if tt(0) ne 7 then begin
+    infile = strtrim(strcompress(string(infile)),2)
+    if n_elements(verbose) ne 0 then print,' Invalid filename : no string !'
+endif
+
+if n_elements(infile) gt 1 then begin
+    if n_elements(verbose) ne 0 then begin
+        print,' Infile must be single string !'
+        print,' Only checking first entry.'
+    endif
+    infile = infile(0)
+endif
+
+; set default action: read + write
+if n_elements(read_file)+n_elements(write_file) eq 0 then begin
+read_file = 1
+write_file = 1
+endif
+
+infileold = infile
+
+;-----------------------------------------------------------------------------
+; control read status
+;-----------------------------------------------------------------------------
+if n_elements(read_file) ne 0 then begin
+correct = 1
+
+noread : if correct eq 0 then begin
+    if n_elements(change) ne 0 then begin
+        print
+        print,' Can not read from file : ',infile
+        print
+        print,' Please enter valid filename and hit return : '
+        infile = read_keyboard(' : ')
+        if infile eq '' then begin
+            ans = read_keyboard(' Do you want to abort read-check (y/n) ? ')
+            if ans eq 'y' then begin
+                if n_elements(write_file) ne 0 then begin
+                    infile = infileold
+                    goto,gg
+                endif else stop
+            endif
+        endif
+    endif else begin
+        if n_elements(write_file) ne 0 then goto,gg else begin
+            return,[infile,string(read_status),string(write_status)]
+        endelse
+    endelse
+endif
+
+correct = 0
+on_ioerror,noread
+openr,in_unit_check,infile,/get_lun
+free_lun,in_unit_check
+
+on_ioerror,null
+read_status = 1
+
+endif
+
+gg:
+
+;-----------------------------------------------------------------------------
+; control write status
+;-----------------------------------------------------------------------------
+if n_elements(write_file) ne 0 then begin
+correct = 1
+
+nowrite : if correct eq 0 then begin
+    if n_elements(change) ne 0 then begin
+        print
+        print,' Can not create file : ',infile 
+        print
+        print,' Please enter valid filename and hit return : '
+        infile = read_keyboard(' : ')
+        if infile eq '' then begin
+            ans = read_keyboard(' Do you want to abort write-check (y/n) ? ')
+            if ans eq 'y' then stop
+            if ans ne 'y' then infile = '/'
+        endif
+    endif else begin
+        return,[infile,string(read_status),string(write_status)]
+    endelse
+endif
+
+correct = 0
+on_ioerror,nowrite
+
+openw,in_unit_check,infile+'.remove',/get_lun
+
+free_lun,in_unit_check
+
+spawn,'rm '+infile+'.remove'
+
+on_ioerror,null
+write_status = 1
+
+endif
+
+;-----------------------------------------------------------------------------
+; return file attributes, 0 = false, 1 = true
+;-----------------------------------------------------------------------------
+return,[infile,string(read_status),string(write_status)]
+
+end
