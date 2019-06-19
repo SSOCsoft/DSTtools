@@ -1,0 +1,117 @@
+pro jenkins_firs
+
+pp = 1 
+if pp eq 1 then begin
+;inpath = '/net/koa/export/data/cbeck/obs2017/obs_may2017/FIRS_260517_reduced_fringecorr/'
+inpath = '/home/solarstorm/gordonm/firs_cal_example/out/'
+restore,inpath+'firs.2.20171110.081443.reduced.dat.sav'
+a = fltarr(dx_final+1,dy_final + 1,4)
+openr,1,inpath+'firs.2.20171110.081443.reduced.dat'
+readu,1,a
+close,1
+
+
+;save,a,dx_final,dy_final,filename = '/export/raid2/cbeck/work/DST_observations/Consortium/FIRS_cleanup/FIRS_example.sav'
+
+;stop
+
+endif
+
+;restore,'/export/raid2/cbeck/work/DST_observations/Consortium/FIRS_cleanup/FIRS_example.sav'
+
+ii = total(a(*,*,0),2)/dy_final+1.
+
+xx = [58+findgen(140),480+findgen(50),590+findgen(10),640+findgen(20),720+findgen(100),900+findgen(100)]
+
+erg = poly_fit(xx,ii(xx),2,/double)
+speccorr = erg(0)+erg(1)*findgen(dx_final+1)+erg(2)*findgen(dx_final+1.)^2.
+
+mmm = mean(speccorr)
+speccorr = speccorr / mmm
+
+!p.multi = [2,1,2]
+window,0,title = 'Prefilter correction'
+plot,ii
+oplot,xx,ii(xx),psym = 1
+oplot,speccorr*mmm
+plot,ii/speccorr
+
+;ftsread,data,10700,10900,xlam = xlam
+;data = swap_endian(data)/10000.
+;xlam = xlam / 10.
+restore,'/home/solarstorm/gordonm/dst_pro/FIRS_cleanup/fts_cent.sav'
+ind = where( (wave gt 10700) and (wave lt 10900) )
+data = spec[ ind ]/1e4
+xlam = wave[ ind ]/1e1
+firs_lam = 1081.695+findgen(dx_final+1)*3.84/1000.
+window,1,title = 'Wavelength scale'
+!p.multi = 0
+plot,firs_lam,ii/mmm/speccorr
+oplot, xlam,data,color = 240
+
+; calculation using Q/I, U/I, V/I
+; can be done just using QUV as well
+
+iline = reform(a(*,250,0))
+qline = reform(a(*,250,1))/iline   ; or: don't do the normalization with iline here.
+uline = reform(a(*,250,2))/iline
+vline = reform(a(*,250,3))/iline
+
+erg = poly_fit(xx,qline(xx),1,/double)
+qcorr = erg(0)+erg(1)*findgen(dx_final+1)
+
+erg = poly_fit(xx,uline(xx),1,/double)
+ucorr = erg(0)+erg(1)*findgen(dx_final+1)
+
+erg = poly_fit(xx,vline(xx),1,/double)
+vcorr = erg(0)+erg(1)*findgen(dx_final+1)
+
+window,2,title = 'QUV slope correction'
+!p.multi = [6,3,2]
+plot,qline
+oplot,qcorr,color = 240
+plot,uline
+oplot,ucorr,color = 240
+plot,vline
+oplot,vcorr,color = 240
+
+plot,qline-qcorr
+plot,uline-ucorr
+plot,vline-vcorr
+
+; uncorrected spectra
+iline = reform(a(*,250,0))
+qline = reform(a(*,250,1))
+uline = reform(a(*,250,2))
+vline = reform(a(*,250,3))
+
+window,3,title = 'Uncorrected spectra'
+!p.multi = [4,2,2]
+plot,firs_lam,iline
+plot,firs_lam,qline/iline
+plot,firs_lam,uline/iline
+plot,firs_lam,vline/iline
+
+; application of prefilter correction, preserves ratio QUV/I
+iline = reform(a(*,250,0))/speccorr
+qline = reform(a(*,250,1))/speccorr
+uline = reform(a(*,250,2))/speccorr
+vline = reform(a(*,250,3))/speccorr
+
+; intensity normalization to I(lambda)
+qline = qline / iline
+uline = uline / iline
+vline = vline / iline
+
+window,4,title ='Corrected spectra'
+plot,firs_lam,iline
+plot,firs_lam,qline-qcorr
+plot,firs_lam,uline-ucorr
+plot,firs_lam,vline-vcorr
+
+stop
+
+
+
+
+end
