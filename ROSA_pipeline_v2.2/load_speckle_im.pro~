@@ -1,0 +1,4 @@
+;;
+;;Program to read in unformatted binary image. Filename and array
+;;dimensions must be passed
+;;

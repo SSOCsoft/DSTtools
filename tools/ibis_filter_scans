@@ -1,0 +1,70 @@
+#!/bin/bash
+
+##
+## SYNOPSIS:
+## This script examines a standard IBIS log file for
+## scanned spectral lines and which FITS extensions to
+## find the line scans on.
+##
+## USAGE:
+## 	ibis_filter_scans <path_to_IBIS_log_file>
+##
+## OUTPUT:
+## A list of spectral lines contained within an IBIS dataset
+## and the respective FITS extension ranges for those
+## spectral lines. Printed to standard output.
+##
+## AUTHOR:
+## MacDonald, G.A., Sunspot Solar Observatory, NMSU
+##
+## CHANGES:
+## 2018/08/21: Initial release.
+##
+
+EXITSTATUS=0
+ERRORSTATUS=1
+numRE='^[568][0-9][0-9][0-9][ ]?' #Regexp used for checking spectral line selection.
+
+## Check commandline input.
+file=$1
+if [ $# -ne 1 ]
+then
+	echo "Usage: $(basename $0) <IBISlogFile>" >&2
+	echo "Exiting..." >&2
+	exit $ERRORSTATUS
+fi
+
+
+## Get line numbers of the beginning of the first two iterations.
+fLines=($(grep -nE "Begin Iteration  #[1|2] of" ${file} | cut -f1 -d:))
+if [ ! ${fLines} ]
+then 
+	echo "This does not appear to be a valid IBIS log file. Exiting..." >&2
+	exit $ERRORSTATUS
+fi
+
+
+echo "Going to cut lines $((${fLines[0]}+1)) through $((${fLines[1]}-1)), total of $((${fLines[1]}-${fLines[0]}-1)) lines"$'\n'
+
+
+## Get the spectral lines scanned in the IBIS run.
+specLines=($(head -$((${fLines[1]}-1)) ${file} | tail -$((${fLines[1]}-${fLines[0]}-1)) | awk -F '[ ]' '{print $3}' | uniq))
+if ! [[ ${specLines[*]} =~ ${numRE} ]]
+then
+	echo "Spectral lines: ${specLines[*]}" >&2
+	echo "This does not appear to be a valid IBIS log file. Exiting..." >&2
+	exit $ERRORSTATUS
+fi
+
+
+## Get FITS extensions for each spectral line. Print the first and last to stdout.
+for i in ${specLines[*]};
+do
+	f=($(head -$((${fLines[1]}-1)) ${file} | tail -$((${fLines[1]}-${fLines[0]}-1)) | grep -n "" | grep ${i} | cut -f1 -d: ))
+	if [ ${f} ]; then echo "${i} data on extensions ${f[0]} - ${f[${#f[@]}-1]}"; fi
+done
+
+
+## That's all folks!
+exit $EXITSTATUS
+

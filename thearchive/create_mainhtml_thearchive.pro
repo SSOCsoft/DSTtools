@@ -1,0 +1,147 @@
+pro create_mainhtml_thearchive,inpath =inpath,outfile = outfile
+
+if n_elements(inpath) eq 0 then inpath = '/export/raid2/cbeck/work/THE_archive/'
+
+if n_elements(outfile) eq 0 then outfile = inpath+'THE_archivemain.html'
+
+erg = read_directory(inpath)
+close,/all
+
+direcs = erg.files(where(erg.types eq 1))+'/'
+plaindir = direcs
+direcs = inpath+direcs
+ndir = n_elements(direcs)
+
+openw,out_unit,outfile,/get_lun
+
+printf,out_unit,'<!DOCTYPE doctype PUBLIC "-//w3c//dtd html 4.0 transitional//en">'
+printf,out_unit,'<html>'
+printf,out_unit,'<head>'
+printf,out_unit,'  <meta content="text/html; charset=iso-8859-1"'
+printf,out_unit,' http-equiv="Content-Type">'
+printf,out_unit,'  <meta content="Mozilla/4.7 [en] (X11; I; SunOS 5.8 sun4u) [Netscape]"'
+printf,out_unit,' name="GENERATOR">'
+printf,out_unit,'  <title>THE Archive</title>'
+printf,out_unit,'</head>'
+
+
+printf,out_unit,'<img src="NSO.gif" alt="" style="width: 980px; height: 138px;"><bnsp&;bnsp&;<br><br>'
+
+printf,out_unit,"<br><big><big> How to use this archive</big></big> <br><br> For each data set two files exist. <br><br><big> .txt</big> contains the header information, as far as it was available. The text in this file is included in the overview pages, if create_html.pro is started in the directory. <br><br><big> .gif</big> is a gif image of the data set."
+printf,out_unit,'Displayed variables vary depending on instrument and wavelength. Images may have been resized, click on them to get the original-sized image.<br><br>'
+printf,out_unit,'Data of the DST service mode cycles is indicated by <big><big><font color="red">LARGE RED</font></big></big> font. These data are accessible for download from'
+printf,out_unit,'&nbsp;<a href="http://nsosp.nso.edu/node/250"> DST Service Mode  </a>&nbsp; under <br>'
+printf,out_unit,'&nbsp;<a href="http://dstsvc.nso.edu/DST.ObsLog.programs.SMO1.html"> DST Service Mode Cycle 1</a>&nbsp;'
+printf,out_unit,'&nbsp;<a href="http://dstsvc.nso.edu/DST.ObsLog.programs.SMO2.html"> DST Service Mode Cycle 2</a>&nbsp;'
+printf,out_unit,'&nbsp;<a href="http://dstsvc.nso.edu/DST.ObsLog.programs.SMO3.html"> DST Service Mode Cycle 3</a>&nbsp; . <br><br>'
+
+;Lower row: IQUV."
+;if n_elements(tip) eq 0 then printf,out_unit,"Upper row: Line core velocity of TiI 630.37, FeI 630.25, FeI 630.15, polarity."
+;if n_elements(tip) ne 0 then printf,out_unit,"Upper row: Line core velocity of line 1 (usually FeI 1564.8, Si 1082.7), line 2 (FeI 1565.2, HeI 1083.0), B, polarity."
+;printf,out_unit,"This image may be resized to fit on the screen. <br><br>"
+;printf,out_unit,"<br><br>&nbsp;&nbsp;&nbsp; <big><big> Example: </big></big><br><br>"
+
+;if n_elements(tip) eq 0 then printf,out_unit,' <span style="color: rgb(51, 0, 51);"></span><br style="color: rgb(51, 0, 51);"> <table cellpadding="2" cellspacing="2" border="1" style="text-align: left; width: 704px; height: 199px;"> <tbody> <tr> <td style="vertical-align: top;" colspan="2"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">File: 23JUN2006.010_vip2pol</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Date: 2005/7/9</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Time: 07:40:29 until 08:18:55</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);"># steps,stepwidth: 200,0.300000</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Scan area: 60.0000x47.2700</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Mod speed,n_acum,tot.integ.time: 0.610000,12,9.83607</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">posx, posy, hel. angle: 0.00000,0.00000,0.00000</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">CA data: not found</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Image correction: AO</span><br> </span><span style="color: rgb(51, 0, 51);"></span><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">Target: Sunspot and active region<br> Comments: Lunch was terrible again<br> </span></span></span></span></span></span></span></td> <td style="vertical-align: top;"><a href="example.ps"><img alt="" style="border: 2px solid ; width: 413px;'
+;if n_elements(tip) ne 0 then printf,out_unit,' <span style="color: rgb(51, 0, 51);"></span><br style="color: rgb(51, 0, 51);"> <table cellpadding="2" cellspacing="2" border="1" style="text-align: left; width: 704px; height: 199px;"> <tbody> <tr> <td style="vertical-align: top;" colspan="2"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">File: 23jun06.010cc</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Date: 2005/7/9</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Time: 07:40:29 until 08:18:55</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);"># steps,stepwidth: 200,0.300000</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Scan area: 60.0000x47.2700</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Exp.time,n_acum,tot.integ.time: 250,4,4</span><br style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">Wavelength: 1565</span><br style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">posx, posy, hel. angle: 0.00000,0.00000,0.00000</span><br style="color: rgb(51, 0, 51);"> <span style="color: rgb(51, 0, 51);">Image correction: AO</span><br> </span><span style="color: rgb(51, 0, 51);"></span><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);"><span style="color: rgb(51, 0, 51);">Target: Sunspot and active region<br> Comments: Lunch was terrible again<br> </span></span></span></span></span></span></span></td> <td style="vertical-align: top;"><a href="example.ps"><img alt="" style="border: 2px solid ; width: 413px;'
+
+;if n_elements(tip) eq 0 then printf,out_unit,'height: 163px;" example.gif="" src="example.gif"></a></td> </tr> </tbody> </table> <span style="color: rgb(51, 0, 51);"></span><br>' else printf,out_unit,'height: 218px;" example.gif="" src="example.gif"></a></td> </tr> </tbody> </table> <span style="color: rgb(51, 0, 51);"></span><br>'
+
+if ndir ne 0 then begin
+        for k = 0,ndir-1 do begin
+             printf,out_unit,'&nbsp;&nbsp;&nbsp;<big><big>'+strsplit(plaindir(k),'/',/extract)+'</big></big>'
+          ;   printf,out_unit,'<br><br>'
+          ;   if k gt 15 then  printf,out_unit,'<br>'
+             erg = read_directory(direcs(k))
+             ff = where(erg.types eq 1)
+             if ff(0) ne -1 then subdirs = erg.files(ff)+'/'
+             nsubdirs = n_elements(subdirs)
+             
+             if nsubdirs ne 0 then begin
+                erg = string2num(subdirs)
+                nmonth = fix(erg)
+              
+                xx = sort(nmonth)
+                nmonth = nmonth(xx)
+                subdirs = subdirs(xx)
+               
+
+               
+                
+                for kk = 0,nsubdirs-1 do begin
+                   erg = read_directory(direcs(k)+subdirs(kk))
+                   ff = where(erg.types eq 1)
+                   if ff(0) ne -1 then subsubdirs = erg.files(ff)+'/'
+                   nsubsubdirs = n_elements(subsubdirs)
+                   create_page_month,direcs(k),subdirs(kk),subsubdirs
+                endfor
+
+                for kk = 0,nsubdirs-1 do begin
+
+                   if ((k eq 14) and ((kk eq 0) or (kk eq 1) or (kk eq 8))) or ((k eq 15) and (kk eq 7)) then begin
+                      printf,out_unit,'&nbsp; <a  href="'+plaindir(k)+subdirs(kk)+strsplit(subdirs(kk),'/',/extract)+'.html"><big><big><font color="red">'+subdirs(kk)+'</font></big></big></a>&nbsp;'
+                   monthold = nmonth(kk)
+
+                 
+                endif else begin
+                     printf,out_unit,'&nbsp;<a href="'+plaindir(k)+subdirs(kk)+strsplit(subdirs(kk),'/',/extract)+'.html">'+subdirs(kk)+'</a>&nbsp;'
+                   monthold = nmonth(kk)
+                
+
+                endelse
+
+
+
+;                printf,out_unit,
+               
+            endfor
+            printf,out_unit,'<br>'
+        endif
+    endfor
+endif
+
+printf,out_unit,'<br> <big> <big> Links to other data bases: </big> </big><br><br>'
+printf,out_unit,'&nbsp;<a href="http://solarwww.mtk.nao.ac.jp/katsukaw/itp2005/"> ITP campaign July 2005 </a>&nbsp; '
+printf,out_unit,'&nbsp;<a href="http://www.staff.science.uu.nl/~rutte101/dot/"> Dutch Open Telescope </a>&nbsp; '
+printf,out_unit,'&nbsp;<a href="http://sdo.gsfc.nasa.gov/data/"> SDO NASA</a>&nbsp; '
+printf,out_unit,'&nbsp;<a href="http://gong2.nso.edu/archive/patch.pl?menutype=s"> GONG </a>&nbsp;'
+printf,out_unit,'&nbsp;<a href="http://www.leibniz-kis.de/de/observatorien/chrotel/data/"> Chrotel </a>&nbsp;'
+printf,out_unit,'&nbsp;<a href="http://solis.nso.edu/0/index.html"> SOLIS </a>&nbsp;'
+printf,out_unit,'&nbsp;<a href="http://iris.lmsal.com/search/"> IRIS </a>&nbsp;  <br>'
+printf,out_unit,'&nbsp;<a href="http://sdc.uio.no/sdc/welcome">  HINODE/ESA </a>&nbsp; <a href="http://hinode.nao.ac.jp/en/">  HINODE/JAPAN </a>&nbsp;  <a href="https://www2.hao.ucar.edu/csac">  HINODE/HAO </a>&nbsp;  '
+printf,out_unit,'&nbsp;<a href="http://solarmonitor.org/"> Solar monitor </a>&nbsp; '
+printf,out_unit,'&nbsp;<a href="http://sohowww.nascom.nasa.gov/data/synoptic/"> Synoptic data base NASA </a>&nbsp; <br>'
+printf,out_unit,'&nbsp;<a href="http://archive.leibniz-kis.de/pub/gris/index.html">GREGOR Infrared Spectrograph (GRIS)  </a>&nbsp; <br>'
+
+printf,out_unit,'<br><br> For any questions or comments on this overview archive, check the NSO web page for a valid E-mail address of C. Beck.<br>'
+
+
+;printf,out_unit,'&nbsp;<a href="http://nsosp.nso.edu/node/250"> DST Service Mode </a>&nbsp; <br>'
+if n_elements(vip) ne 0 then begin
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/POLIS_archive/POLIS_archivemain.html"> POLIS Archive</a>&nbsp; <br>'
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/TIP_archive/TIP_archivemain.html"> TIP Archive</a>&nbsp; <br>'
+endif
+
+if (n_elements(vip)+n_elements(tip)) eq 0 then begin
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/VIP_archive/VIP_archivemain.html"> VIP Archive</a>&nbsp; <br>'
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/TIP_archive/TIP_archivemain.html"> TIP Archive</a>&nbsp; <br>'
+endif
+
+if n_elements(tip) ne 0 then begin
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/POLIS_archive/POLIS_archivemain.html"> POLIS Archive</a>&nbsp; <br>'
+;printf,out_unit,'&nbsp;<a href="http://www.kis.uni-freiburg.de/~cbeck/VIP_archive/VIP_archivemain.html"> VIP Archive</a>&nbsp; <br>'
+endif
+
+
+;http://solarwww.mtk.nao.ac.jp/katsukaw/itp2005/
+;http://www.staff.science.uu.nl/~rutte101/dot/
+;http://sohowww.nascom.nasa.gov/data/synoptic/
+
+printf,out_unit,'</body>'
+printf,out_unit,'</html>'
+
+free_lun,out_unit
+
+
+stop
+
+end

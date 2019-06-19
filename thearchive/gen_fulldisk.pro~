@@ -1,0 +1,108 @@
+pro gen_fulldisk,img_file,positions,x_box,y_box,outfile,diameter = diameter,longlat = longlat,times = times,xoff = xoff,yoff = yoff,nopause = nopause
+
+if n_elements(img_file) eq 0 then img_file = '/export/cbeck/work/servicemode/sec_cycle/latest_1024_HMIIF.jpg'
+if n_elements(positions) eq 0 then positions = [ [50,400],[200,350],[700,0] ]
+if n_elements(diameter) eq 0 then diameter = 951.
+if n_elements(xoff) eq 0 then xoff = 0.
+if n_elements(yoff) eq 0 then yoff = 0.
+
+erg = get_screen_size()
+
+sscale = 1.
+if erg(0) lt 1024 or erg(1) lt 1024 then begin
+
+;sscale = min(erg)/1024./1.25
+sscale = min(erg)/1024./1.25
+
+endif
+
+scale = diameter / 951.*sscale
+
+
+scalebox = diameter / 951.
+
+read_jpeg,img_file,img
+ccenter = ([diameter/2.,diameter/2.]+(1024-diameter)/2.)+[xoff,yoff]
+
+if n_elements(longlat) ne 0 then begin 
+   for k = 0,n_elements(positions(0,*))-1 do begin
+      longi = reform(positions(0,k))
+      lati =  reform(positions(1,k))
+
+      radius = cos(lati/180.*!pi)*diameter
+
+      dx = sin(longi/180.*!pi)*radius
+      dy = sin(lati/180.*!pi)*diameter
+
+     
+      positions(0,k) = dx
+      positions(1,k) = dy
+
+   
+   endfor
+
+endif
+
+positions(0,*) = positions(0,*)+xoff
+positions(1,*) = positions(1,*)+yoff
+
+
+tt = size(img)
+
+if tt(0) eq 3 then begin 
+iimg = bytarr(3,1024*sscale,1024*sscale)
+for k = 0,2 do begin & iimg(k,*,*) = congrid(reform(img(k,*,*)),1024 *sscale,1024 *sscale,/interp) & endfor 
+img = iimg
+endif else  img = congrid(img,1024*sscale,1024*sscale,/interp)
+
+
+
+cchars = 1.5
+device,decomposed = 0
+
+window,0,xs = 1024*sscale,ys = 1024*sscale
+if tt(0) eq 3 then tvscl,img,/true else tvscl,img
+
+loadct,39,/silent
+;sscale=0.55
+
+;for k = 0,n_elements(positions(0,*))-1 do begin & draw_rec,([-40,40]*scalebox+positions(0,k)/2.*scalebox+ccenter(0))*sscale,([-40,40]*scalebox+positions(1,k)/2.*scalebox+ccenter(1))*sscale,/device,thick = 2, color = 10+k*40 & xyouts,(-40*scalebox+positions(0,k)/2.*scalebox+ccenter(0))*sscale,(50*scalebox+positions(1,k)/2.*scalebox+ccenter(1))*sscale,strtrim(string(fix(positions(0,k)-xoff)),1)+', '+strtrim(string(fix(positions(1,k)-yoff)),1),/device,color =10+k*40,charsize = cchars & endfor
+;
+
+;plot,fltarr(5),/nodata,/noerase,pos = [-diameter/2.+ccenter(0),-diameter/2.+ccenter(1),diameter/2.+ccenter(0),diameter/2.+ccenter(1)]*sscale,/device,xr = [-diameter,diameter]/scale*sscale,yr =  [-diameter,diameter]/scale*sscale,/xstyle, /ystyle  
+;oplot,[0,0]-730,[0,0]+50,psym = 1
+
+plot,fltarr(5),/nodata,/noerase,pos = [-diameter/2.+ccenter(0),-diameter/2.+ccenter(1),diameter/2.+ccenter(0),diameter/2.+ccenter(1)]*sscale,/device,xr = [-diameter,diameter]/scale*sscale,yr =  [-diameter,diameter]/scale*sscale,/xstyle, /ystyle  
+;oplot,[0,0]-730,[0,0]+50,psym = 1
+;for k = 0,n_elements(positions(0,*))-1 do begin & draw_rec,([-55,70]+positions(0,k)),([-55,55]+positions(1,k)),/data,thick = 2, color = 10+k*40 & xyouts,-40+positions(0,k),(65+positions(1,k)),strtrim(string(fix(positions(0,k)-xoff)),1)+', '+strtrim(string(fix(positions(1,k)-yoff)),1),/data,color =10+k*40,charsize = cchars & endfor
+
+for k = 0,n_elements(positions(0,*))-1 do begin & draw_rec,([-x_box(k)/2.,x_box(k)/2]+positions(0,k)),([-y_box(k)/2.,y_box(k)/2.]+positions(1,k)),/data,thick = 2, color = 10+k*40 & xyouts,-40+positions(0,k),(65+positions(1,k)),strtrim(string(fix(positions(0,k)-xoff)),1)+', '+strtrim(string(fix(positions(1,k)-yoff)),1),/data,color =10+k*40,charsize = cchars & endfor
+;
+
+
+if n_elements(times) ne 0 then begin
+rr = fltarr(150,n_elements(times)*30)+1.
+rr(0,0) = 0.
+tvscl,rr < .5,0,0
+
+for k = 0,n_elements(times)-1 do begin & xyouts,.01,.01+k*.025,times(k),color = 10+k*40,charsize = cchars, /normal,charthick = 1.5 & endfor
+
+
+endif
+
+
+;plots,[0,0]+ccenter(0)*sscale,[0,0]+ccenter(1)*sscale,/device,psym = 1,symsize = 2
+
+loadct,0,/silent
+
+
+a = tvrd(/true)
+
+write_jpeg,outfile,a,/true
+
+if n_elements(nopause) eq 0 then paused
+
+
+wdelete,0
+
+end

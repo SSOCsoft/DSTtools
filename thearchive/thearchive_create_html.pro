@@ -1,0 +1,448 @@
+pro thearchive_create_html,filepath = filepath,target = target, comments = comments, help = help,vip = vip,tip = tip,gris = gris,smo = smo
+
+;+
+;============================================================================
+;
+;	procedure : create_html
+;
+;	purpose  : Create Overview html-page for contents of a
+;	           directory in the POLIS data archive.
+;
+;	written :  cbeck@KIS
+;
+;==============================================================================
+;
+;	Check number of arguments.
+;
+;==============================================================================
+if n_elements(help) ne 0 then begin
+	print
+	print, "usage:  create_html,filepath = filepath,target = target,"
+        print, "                    comments = comments, help = help"
+	print
+	print, "	Create Overview html-page from all ps/gif/text files"
+        print, "        in a directory of the POLIS archive. Call "
+        print, "        generate_archive_files before. Filename of html page"
+        print, "        is generated from name of last subdirectory of"
+        print, "        filepath. All gif files are linked with corresponding"
+        print, "        ps-files. The text in the .txt file is included as"
+        print, "        it is in the text file."
+        print
+	print, "	Arguments"
+        print, "                None."
+        print
+        print, "        Keywords:"
+        print, "               filepath : path to input directory. Either"
+        print, "                        .gif,.txt. and .ps or only .ps files"
+        print, "                        must exist."
+        print, "               target='text' : will be added in html page."
+        print, "               comments='text' : will be added in html page."
+        print, "               Warning: target and comments are only added"
+        print, "               to the html file, not the text file. This is"
+        print, "               not recommended, use edit_archive_txt.pro."
+        print
+        return
+endif
+;==============================================================================
+;-
+
+; input path
+if n_elements(filepath) eq 0 then begin
+cd,current = filepath
+filepath = filepath+'/'
+endif
+
+; find full-disk jpg pointing images in the directory
+erg_jpg = read_directory(filepath,filter = '*.jpg')
+files_jpg =  erg_jpg.files
+
+do_jpg = 0
+if files_jpg(0) ne '' then do_jpg = 1
+
+; find all .gif, .ps, .txt in the directory
+erg = read_directory(filepath,filter = '*.gif')
+files =  erg.files
+
+if files(0) eq '' then print,filepath
+
+;erg2 = read_directory(filepath,filter = '*.ps')
+;files2 =  erg2.files
+
+erg1 = read_directory(filepath,filter = '*.txt')
+files1 = erg1.files
+
+if files1(0) eq '' then print,filepath
+
+filenum = min([n_elements(files1),n_elements(files)])
+
+files1 = files1(0:filenum-1)
+files  = files(0:filenum-1)
+
+ttime = fltarr(filenum,3,2)
+iinstrument = strarr(filenum)
+ttelescope = strarr(filenum)
+
+
+for k = 0,n_elements(files1)-1 do begin
+
+   openr,in_unit,filepath+files1(k),/get_lun
+   erg2 = fstat(in_unit) & max_size = erg2.size
+   aa = bytarr(max_size)
+   readu,in_unit,aa
+   point_lun,in_unit,0
+   ff = n_elements(where(aa eq 10))
+   do_ca = 0
+;   for kk = 0,ff-1 do begin
+   for kk = 0,ff-5 do begin
+      a = strarr(1)
+      readf,in_unit,a
+      if kk eq 2 then b = string2num(a)   
+  
+; add target and comments, if specified
+      if kk eq 9 and n_elements(target) ne 0 then a = a+' '+target
+      if kk eq 10 and n_elements(comments) ne 0 then a = a+' '+comments
+   endfor
+   free_lun,in_unit
+
+   ttime(k,*,0) = b(0:2)
+   ttime(k,*,1) = b(3:5)
+
+   erg = strmatch( files1(k), '*cc.txt' )
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'TIP'
+      ttelescope(k) = 'VTT'
+
+      if n_elements(gris) ne 0 then begin
+         iinstrument(k) = 'GRIS'
+         ttelescope(k) = 'GREGOR'
+      endif
+
+
+   endif
+
+   erg = strmatch( files1(k), 'fe2*.txt' )
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'POLIS'
+      ttelescope(k) = 'VTT'
+   endif
+
+   erg = strmatch( files1(k), '*hrt.map*.txt' )
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'SPINOR'
+      ttelescope(k) = 'DST'
+   endif
+
+   erg = strmatch( files1(k), 'firs*.txt' )
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'FIRS'
+      ttelescope(k) = 'DST'
+   endif
+
+   erg = strmatch( files1(k), 's00*.txt' )
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'IBIS'
+      ttelescope(k) = 'DST'
+   endif
+
+   erg = strmatch( files1(k), 'das*.txt' )+ strmatch( files1(k), '*cam_data*txt')
+   if erg(0) eq 1 then begin
+      iinstrument(k) = 'ROSA'
+      ttelescope(k) = 'DST'
+   endif
+
+ ;  if iinstrument(k) eq 'FIRS' then begin
+ ;     ttime(k,0,0) = ttime(k,0,0)+7.
+;      ttime(k,0,1) = ttime(k,0,1)+7.
+;   endif
+ ;  if iinstrument(k) eq 'SPINOR' then begin
+ ;     ttime(k,0,0) = ttime(k,0,0)+6.
+ ;     ttime(k,0,1) = ttime(k,0,1)+6.
+ ;  endif
+
+endfor
+
+
+starttime = ttime(*,0,0)+ttime(*,1,0)/60.+ttime(*,2,0)/3600.
+endtime =  ttime(*,0,1)+ttime(*,1,1)/60.+ttime(*,2,1)/3600.
+
+ff = sort(starttime)
+starttime = starttime(ff)
+endtime = endtime(ff)
+files = files(ff)
+files1 = files1(ff)
+iinstrument = iinstrument(ff)
+ ttelescope =  ttelescope(ff)
+for k = 0,2 do begin & for kk = 0,1 do begin ttime(*,k,kk) = ttime(ff,k,kk) & endfor & endfor
+
+;if filenum gt n_elements(files) then begin
+;ffiles = strarr(filenum)
+;ffiles(0:n_elements(files)-1) = files
+;files = ffiles
+;endif
+;if filenum gt n_elements(files1) then begin
+;ffiles = strarr(filenum)
+;ffiles(0:n_elements(files)-1) = files
+;files1 = ffiles
+;endif
+;if filenum gt n_elements(files2) then begin
+;ffiles = strarr(filenum)
+;ffiles(0:n_elements(files)-1) = files
+;files2 = ffiles
+;endif
+
+; generate Overview page file name
+fff = strsplit(filepath,'/',/extract)
+fff = fff(n_elements(fff)-1)
+
+fff = long(fff)
+if fff/100000 eq 0 then textstring = '0'+num2string(fff) else textstring = num2string(fff)
+
+openw,out_unit,filepath+'Overview.'+textstring+'.html',/get_lun
+
+; print out html header declaration
+printf,out_unit,'<!DOCTYPE doctype PUBLIC "-//w3c//dtd html 4.0 transitional//en">'
+printf,out_unit,'<html>'
+printf,out_unit,'<head>'
+printf,out_unit,'  <meta content="text/html; charset=iso-8859-1"'
+printf,out_unit,' http-equiv="Content-Type">'
+printf,out_unit,'  <meta content="Mozilla/4.7 [en] (X11; I; SunOS 5.8 sun4u) [Netscape]"'
+printf,out_unit,' name="GENERATOR">'
+printf,out_unit,'  <title>'+textstring+'</title>'
+printf,out_unit,'</head>'
+if n_elements(smo) eq 0 then printf,out_unit,'<a href="../../../THE_archivemain.html"> <big>Back to main page </big></a><br><br>' else printf,out_unit,'<a href="../../../SMO_archivemain.html"> <big>Back to main page </big></a><br><br>' 
+printf,out_unit,'<a href="../'+strmid(textstring,2,2)+'.html"> <big>Back </big></a><br><br>' 
+
+;stop
+
+;printf,out_unit,'<table width="500">'
+;printf,out_unit,'<tr>'
+;printf,out_unit,'<td style="background-color:#FFD700;width:100px;"><b>Menu</b><;br>HTML<br>CSS<br>JavaScript</td>'
+;printf,out_unit,'<td style="background-color:#EEEEEE;height:200px;width:400px;">Content goes here</td></tr></table>'
+
+ffixstarttime = fix(starttime)
+hhours = unique(ffixstarttime)
+
+
+
+ttext = 'Timeline '+textstring+': '
+
+for k = 0,n_elements(hhours) -1 do begin 
+
+   ttimecurrent = hhours(k)
+   ff = where(ffixstarttime eq ttimecurrent)
+   iinstrumentcurrent = iinstrument(ff)
+   iinstrumentcurrent = iinstrumentcurrent(sort(iinstrumentcurrent))
+   erg = unique(iinstrumentcurrent) 
+
+   if n_elements(erg) ne 1 then begin 
+      erg1 = ''
+      for kk = 0,n_elements(erg)-1 do begin 
+         erg1 = erg1+' '+erg(kk)
+      endfor 
+   endif else erg1 = erg
+
+      ttext = ttext +' '+num2string(ttimecurrent)+':00'+' '+erg1 
+endfor
+printf,out_unit,'<hr>'
+printf,out_unit,ttext
+printf,out_unit,'<hr><br>'
+
+if do_jpg ne 0 then begin
+   printf,out_unit,'Pointing images: '
+   
+   for k = 0,n_elements(files_jpg) -1 do begin 
+      read_jpeg,filepath+files_jpg(k),a
+      
+      
+
+      a = size(a)
+      ssize =  a(2)             ;
+      hheight = a(3)  
+
+      if n_elements(a) eq 5 then begin
+         ssize =  a(1)
+         hheight = a(2) 
+         
+      endif
+
+    
+      dimens = [  ssize * 100/float(hheight),100.]
+      
+
+      printf,out_unit,'<a href="'+files_jpg(k)+'"><img style="border: 2px solid ; width: '+num2string(fix(dimens(0)))+'px; height: '+num2string(fix(dimens(1)))+'px; alt="'+files_jpg(k)+'" src= "'+files_jpg(k)+'"></a>'
+
+
+
+     
+
+
+   endfor
+
+endif
+
+
+; loop over files
+for k = 0,filenum-1 do begin
+
+
+if k eq 0 then begin
+   
+   printf,out_unit,'<hr><hr>'
+
+   printf,out_unit,'<table width = "1200">'
+   printf,out_unit,'<big><big>'+num2string(fix(starttime(k)))+':00</big></big>'
+   iindex = 0.
+endif else begin
+   difft = fix(starttime(k)) -  ttimeold 
+   if string2num(difft) ne 0 then begin
+      printf,out_unit,'</tr></table><br>'
+      printf,out_unit,'<hr><hr>'
+      printf,out_unit,'<table width = "1200">'
+      printf,out_unit,'<big><big>'+num2string(fix(starttime(k)))+':00</big></big>'
+      iindex = 0.
+   endif
+endelse
+
+if iindex mod 4 eq 0 and iindex ne 0 then begin
+    printf,out_unit,'</tr></table><br><br>'
+;    printf,out_unit,'<hr>'
+    printf,out_unit,'<table width = "1200">'
+endif
+
+
+;printf,out_unit,'<br>'
+;printf,out_unit,'<br>'
+
+printf,out_unit,'<td style="width:600px;">'
+printf,out_unit,'<big><big>'+ttelescope(k)+'/'+iinstrument(k)+'</big></big><br>' 
+
+; read in all lines in .txt file
+if files1(k) ne '' then begin
+
+  
+   openr,in_unit,filepath+files1(k),/get_lun
+
+   erg2 = fstat(in_unit) & max_size = erg2.size
+   aa = bytarr(max_size)
+   readu,in_unit,aa
+   point_lun,in_unit,0
+   ff = n_elements(where(aa eq 10))
+   do_ca = 0
+;   for kk = 0,ff-1 do begin
+   for kk = 0,ff-5 do begin
+   
+      a = strarr(1)
+      readf,in_unit,a
+      
+      if kk eq 3 then b = string2num(a)
+      
+; add target and comments, if specified
+      if kk eq 9 and n_elements(target) ne 0 then a = a+' '+target
+      if kk eq 10 and n_elements(comments) ne 0 then a = a+' '+comments
+
+      printf,out_unit,'<span style="color: rgb(51, 0, 51);">'+a+'</span><br style="color: rgb(51, 0, 51);">'
+   endfor
+
+   printf,out_unit,'<br>'
+   free_lun,in_unit
+
+endif
+
+; include gif file of visible data, link it with .ps files
+if files(k) ne '' then begin
+
+
+initial_letters = strmid(files1(k),0,3)
+
+if initial_letters eq 'das' then begin
+   basefile = strmid(files1(k),0,strlen(files1(k))-3)
+
+   ergg = read_directory(filepath,filter = basefile+'gif')
+   imgfiles = ergg.files
+
+   tdiff = fltarr(4)+10.
+for kk = 1,3 do begin & if k+kk le n_elements(ttimes)-1 then tdiff(kk) = ttimes(k+kk)-ttimes(k) & endfor
+   
+   tdiff(0) = 0
+   ff = where(tdiff lt 0.01)
+   
+   if ff(0) ne -1 then begin
+      imgfiles = strarr(n_elements(ff))
+      for kk = 0,n_elements(ff)-1 do begin
+         basefile = strmid(files1(k+kk),0,strlen(files1(k+kk))-3)
+         ergg = read_directory(filepath,filter = basefile+'gif')
+         imgfiles(kk) = ergg.files
+      endfor
+   endif
+
+   for kk = 0,n_elements(imgfiles)-1 do begin
+
+      read_gif,filepath+imgfiles(kk),a
+      a = size(a)
+      ssize =  a(1)             ;
+      hheight = a(2)      
+
+      dimens = [  ssize * 100/float(hheight),100.]
+
+      printf,out_unit,'<a href="'+imgfiles(kk)+'"><img style="border: 2px solid ; width: '+num2string(fix(dimens(0)))+'px; height: '+num2string(fix(dimens(1)))+'px; alt="'+imgfiles(kk)+'" src= "'+imgfiles(kk)+'"></a>'
+
+   endfor
+endif
+
+if initial_letters eq 's00' then begin
+
+   basefile = strmid(files1(k),0,strlen(files1(k))-3)
+   ergg = read_directory(filepath,filter = basefile+'*.gif')
+   imgfiles = ergg.files
+
+   for kk = 0,n_elements(imgfiles)-1 do begin
+   
+      read_gif,filepath+imgfiles(kk),a
+
+      a = size(a)
+
+      ssize =  a(1)             ;
+
+;if floor(b(0)*b(1)/47.27*81.5*4.) gt a(1) then ssize =  a(1)*2
+      hheight = a(2)      
+
+      dimens = [  ssize * 100/float(hheight),100.]
+      
+      printf,out_unit,'<a href="'+imgfiles(kk)+'"><img style="border: 2px solid ; width: '+num2string(fix(dimens(0)))+'px; height: '+num2string(fix(dimens(1)))+'px; alt="'+imgfiles(kk)+'" src= "'+imgfiles(kk)+'"></a>'
+
+; ssize, hheight
+
+   endfor
+endif
+
+if initial_letters ne 'das' and initial_letters ne 's00' then begin
+
+   read_gif,filepath+files(k),a
+   a = size(a)
+   ssize =  a(1)                ;
+   hheight = a(2)
+   
+   dimens = [  ssize * 100/float(hheight),100.]
+
+   printf,out_unit,'<a href="'+files(k)+'"><img style="border: 2px solid ; width: '+num2string(fix(dimens(0)))+'px; height: '+num2string(dimens(1))+'px; alt="'+files(k)+'" src= "'+files(k)+'"></a><br>'
+endif
+ 
+ printf,out_unit,'<br>'
+
+endif
+
+
+
+printf,out_unit,'</td>'
+printf,out_unit,'<td width="1" bgcolor="#000000"><BR></td>'
+ttimeold = fix(starttime(k))
+iindex = iindex +1.
+
+endfor
+printf,out_unit,'</tr></table>'
+printf,out_unit,'</body>'
+printf,out_unit,'</html>'
+
+free_lun,out_unit
+
+end
